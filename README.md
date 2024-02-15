@@ -95,12 +95,30 @@ buildSpectreTiles process 0.0109042sec.
 
 * Contents of the SVG File
 
+  * shape's coordinates
+
     The original JavaScript code used 28 floating-point numbers to draw a single Spectre shape, resulting in a file size of approximately 500 characters. Additionally, the Python code it was based on utilized 6 floating-point numbers, including affine transformation coefficients, and resulted in a file size of around 200 characters. Notably, the Python code often expressed values like sin(60 deg) = 0.5 as lengthy strings such as 0.499999999999.
 
     In contrast, this program generates a more compact SVG file for a single Spectre shape using only 2 floating-point numbers to represent translation (movement) and 1 integer to denote rotation angle.
 
     Focusing on the quad coordinates of the Spectre shape rather than examining all 14 vertex coordinates can provide more concise insights.
 
+  * Spectre Shapes and Their Colors
+
+    In the original JavaScript code, colors were assigned based on the label type for the Spectre shapes.
+    The arrangement of labels in a fractal pattern is crucial evidence for generating tilings of the weakly chiral aperiodic monotile Tile(1,1) known as “Spectre”.
+
+    In this code, except for the label=“Gamma2” colors are determined by the rotation angles of the shapes.
+    This approach facilitates the discovery of locally similar clusters within the generated shapes.
+    Additionally, the labels are displayed using &lt;text&gt; tags that specify the same rotation angle as the shape.
+    If you find the label text distracting, you can simply comment out the code that outputs the &lt;text&gt; tags.
+
+    Take a look at the image below (linked to spectre-color-for_find_mystec-clusters.png):
+
+      <img src="./spectre-color-for_find_mystec-clusters.png" width="50%">Mystec Spectre Shapes Clusters</img>
+
+Feel free to explore the fascinating patterns and colors!
+  
 
 * Contents of the CSV File
 
@@ -156,11 +174,12 @@ buildSpectreTiles process 0.0109042sec.
 
 # Message to Contributors
 ## Adding Self-Verification and Debugging Information
-    In the source code of this program, we’ve included code for self-verification and debugging purposes.
-    We encourage adding information for analyzing the features of Spectre tileings and retaining the self-verification code as comments without removing it.
+    
+   In the source code of this program, we’ve included code for self-verification and debugging purposes.
+   We encourage adding information for analyzing the features of Spectre tileings and retaining the self-verification code as comments without removing it.
 
-    Providing such detailed information in the README file for MPL-licensed source code helps other developers understand the codebase more effectively.
-    The self-verification and debugging comments contribute to improving the overall quality of the project. 
+   Providing such detailed information in the README file for MPL-licensed source code helps other developers understand the codebase more effectively.
+   The self-verification and debugging comments contribute to improving the overall quality of the project. 
 
  
 
