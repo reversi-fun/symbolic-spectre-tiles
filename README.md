@@ -113,11 +113,13 @@ buildSpectreTiles process 0.0109042sec.
     Additionally, the labels are displayed using &lt;text&gt; tags that specify the same rotation angle as the shape.
     If you find the label text distracting, you can simply comment out the code that outputs the &lt;text&gt; tags.
 
-    Take a look at the image below (linked to spectre-color-for_find_mystec-clusters.png):
+    Take a look at the image below:
+      {: align="center"}
+      <img src="./spectre-color-for_find_mystec-clusters.png" width="50%">   
+      Mystec Spectre Shapes Clusters</img>
 
-      <img src="./spectre-color-for_find_mystec-clusters.png" width="50%">Mystec Spectre Shapes Clusters</img>
-
-Feel free to explore the fascinating patterns and colors!
+    
+     Feel free to explore the fascinating patterns and colors!
   
 
 * Contents of the CSV File
