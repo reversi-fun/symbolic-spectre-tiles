@@ -114,9 +114,10 @@ buildSpectreTiles process 0.0109042sec.
     If you find the label text distracting, you can simply comment out the code that outputs the &lt;text&gt; tags.
 
     Take a look at the image below:
-      {: align="center"}
-      <img src="./spectre-color-for_find_mystec-clusters.png" width="50%">   
-      Mystec Spectre Shapes Clusters</img>
+      
+      
+      Mystec Spectre Shapes Clusters　<img src="./spectre-color-for_find_mystec-clusters.png" width="60%"/>   
+      
 
     
      Feel free to explore the fascinating patterns and colors!
