@@ -97,7 +97,7 @@ buildSpectreTiles process 0.0109042sec.
 
   * shape's coordinates
 
-    The original JavaScript code used 28 floating-point numbers to draw a single Spectre shape, resulting in a file size of approximately 500 characters. Additionally, the Python code it was based on utilized 6 floating-point numbers, including affine transformation coefficients, and resulted in a file size of around 200 characters. Notably, the Python code often expressed values like sin(60 deg) = 0.5 as lengthy strings such as 0.499999999999.
+    The original JavaScript code used 28 floating-point numbers to draw a single Spectre shape, resulting in a file size of approximately 500 characters. Additionally, the Python code it was based on utilized 6 floating-point numbers, including affine transformation coefficients, and resulted in a file size of around 200 characters. Notably, the Python code often expressed values like cos(60 deg) = 0.5 as lengthy strings such as 0.499999999999.
 
     In contrast, this program generates a more compact SVG file for a single Spectre shape using only 2 floating-point numbers to represent translation (movement) and 1 integer to denote rotation angle.
 
@@ -128,15 +128,27 @@ buildSpectreTiles process 0.0109042sec.
     This compact CSV file provides essential information for working with Spectre shapes. The quad coordinates of the Spectre shape can be easily extracted from this data.
 
     - **label**: The label associated with original Papers.
-    - **transform**: The transformation expressed as a complex number (e.g., "0+0i").
+        This header also contains the values of the coefficients A and B
+    - **transform**: The transformation expressed as a complex number (e.g.,  "((-1.5)*A + (-1.0)*B*√3)+((0.5)*A*√3)*i" ).
     - **angle**: The rotation angle in degrees(0,30,60,90,120,180,240).
-    - **transform[0]** and **transform[1]**: Affine transformation coef of rotation. it not Includes SVG-file.
-    - **transform[2].X** and **transform[2].Y: The coordinate of transformation. same as SVG-file.
+    - **transform\[0\].x** ~~ **transform\[1\].y**: Affine transformation coefficients of rotation. it not Includes SVG-file.
+    - **transform\[2\].x** and **transform\[2\].y**: The coordinate of transformation. same as SVG-file.
+        Its value is the value obtained by substituting the values of the coefficients A and B into the expression in **transform** field.
+        spectre-tiles_Symbolic.rb can calculate more accurate coordinates than spectre-tiles_float.rb.
+        However, as shown in the example below, it does contain floating-point errors.
+           * A = 20.0 / (Math.sqrt(3) + 1.0) == 7.320508075688773
+           * B = 20.0 - A == 12.679491924311227 
+           * **transform** (algebraic expression) == "((-19.5)*A + (6.5)*B*√3)-((28.5)*B + (21.5)*A*√3)*i"
+           * transform\[2\].x == -2.842170943040401e-14 
+                                (includes floating-points error) ==> non-obvious, but the correct value is zero.
+           * transform\[2\].y == -633.9745962155613 
 
-| label | transform {A:7.320508075688773, B:12.679491924311227} | angle | transform[0].x | transform[0].y | transform[1].x | transform[1].y | transform[2].x | transform[2].y |
+
+| label | transform {A:7.320508075688773, B:12.679491924311227} | angle | transform\[0\].x | transform\[0\].y | transform\[1\].x | transform\[1\].y | transform\[2\].x | transform\[2\].y |
 |-------|-----------------------------------------------------|-------|-----------------|-----------------|-----------------|-----------------|-----------------|-----------------|
 | "Psi" | "0+0i"                                              | 0     | 1.0             | 0.0             | 0.0             | 1.0             | 0.0             | 0.0             |
 | "Delta" | "((-1.5)*A)-((0.5)*A*√3)*i"                        | 60    | 0.5             | 0.8660254037844386 | -0.8660254037844386 | 0.5 | -10.98076211353316 | -6.339745962155613 |
+| "Psi" | "((-1.5)*A + (-1.0)*B*√3)+((0.5)*A*√3)*i" | 60 |0.5 |0.8660254037844386|-0.8660254037844386 |0.5|-32.94228634059948 | 6.339745962155613|
 |  | ... (omitted for brevity) ...
 | "Gamma1" | "((-12.0)*A + (18.0)*B*√3)-((36.0)*B + (36.0)*A*√3)*i" |  0 | 1.0 | 0.0 | 0.0 | 1.0 | 307.4613391789284 | -912.9234185504083 |
 | "Gamma2" | "((-9.0)*A + (17.5)*B*√3)-((34.5)*B + (36.0)*A*√3)*i"  | 30 | 0.8660254037844386| 0.5 | -0.5 |0.8660254037844386 | 318.4421012924616 | -893.9041806639415 |
@@ -147,7 +159,7 @@ buildSpectreTiles process 0.0109042sec.
 
   * The general format is: 
   ```
-  ruby input_svg_filename min_x min_y max_x max_y
+  ruby svg-cutter2.rb input_svg_filename min_x min_y max_x max_y
   ```
 
        * Explanation
