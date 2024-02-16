@@ -136,12 +136,13 @@ buildSpectreTiles process 0.0109042sec.
         Its value is the value obtained by substituting the values of the coefficients A and B into the expression in **transform** field.
         spectre-tiles_Symbolic.rb can calculate more accurate coordinates than spectre-tiles_float.rb.
         However, as shown in the example below, it does contain floating-point errors.
-           * A = 20.0 / (Math.sqrt(3) + 1.0) == 7.320508075688773
-           * B = 20.0 - A == 12.679491924311227 
-           * **transform** (algebraic expression) == "((-19.5)*A + (6.5)*B*√3)-((28.5)*B + (21.5)*A*√3)*i"
-           * transform\[2\].x == -2.842170943040401e-14 
-                                (includes floating-points error) ==> non-obvious, but the correct value is zero.
-           * transform\[2\].y == -633.9745962155613 
+      
+        * A = 20.0 / (Math.sqrt(3) + 1.0) == 7.320508075688773
+        * B = 20.0 - A == 12.679491924311227 
+        * **transform** (algebraic expression) == "((-19.5)*A + (6.5)*B*√3)-((28.5)*B + (21.5)*A*√3)*i"
+        * transform\[2\].x == -2.842170943040401e-14 
+                              (includes floating-points error) ==> non-obvious, but the correct value is zero.
+        * transform\[2\].y == -633.9745962155613 
 
 
 | label | transform {A:7.320508075688773, B:12.679491924311227} | angle | transform\[0\].x | transform\[0\].y | transform\[1\].x | transform\[1\].y | transform\[2\].x | transform\[2\].y |
