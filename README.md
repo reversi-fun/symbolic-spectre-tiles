@@ -1,8 +1,9 @@
 # symbolic-spectre-tiles
-Ruby script for genrates  spectre tiles by symbolic coordinates like the expression.
-This Ruby script not only generates SVG files for Tile(a,b) coefficients but also produces a CSV file containing symbolic coordinates like the expression:
+This Ruby script generates symbolic exact plane coordinates for spectre tiles, expressed as a formula.
+This Ruby script not only generates SVG files for Tile(a,b) coefficients but also produces a CSV file containing exact plane coordinates like the expression:
 ```
-((16.5)*A + (-2.5)*B*√3) - ((19.5)*B + (11.5)*A*√3)*i
+((-19.5)*A + (6.5)*B*√3)  -  ((28.5)*B + (21.5)*A*√3)*i 
+  == -2.842170943040401e-14  -633.9745962155613*i
 ```
 
 # Usage
