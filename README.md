@@ -136,7 +136,7 @@ buildSpectreTiles process 0.0757302sec.
      Feel free to explore the fascinating patterns and colors!
   
 
-* ![Contents of the CSV File](./spectre-tile7.3-12.6-4-4401tiles-4color.svg.csv)
+* ![Contents of the CSV File](./spectre-tile7.3-12.6-4-4401tiles.svg.csv)
 
     This compact CSV file provides essential information for working with Spectre shapes. The quad coordinates of the Spectre shape can be easily extracted from this data.
 
