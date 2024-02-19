@@ -106,7 +106,7 @@ buildSpectreTiles process 0.0757302sec.
 "spectre-tile7.3-12.6-4-4401tiles.svg"
 ```
 
-* ![Contents of the SVG File](./spectre-tile7.3-12.6-4-4401tiles.svg)
+* Contents of the SVG File
 
   * shape's coordinates
 
