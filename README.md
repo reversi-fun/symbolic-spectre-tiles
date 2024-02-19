@@ -35,7 +35,7 @@ Simply run the following command:
    ruby spectre-tiles_Symbolic.rb
    ```
 
-* console outputs
+* ![console outputs](./spectre-tile7.3-12.6-4.log.txt)
 
   it provides useful information for verifying the drawn Spectre tiles 
   and for convenient clipping.
@@ -106,7 +106,7 @@ buildSpectreTiles process 0.0757302sec.
 "spectre-tile7.3-12.6-4-4401tiles.svg"
 ```
 
-* Contents of the SVG File
+* ![Contents of the SVG File](./spectre-tile7.3-12.6-4-4401tiles.svg)
 
   * shape's coordinates
 
@@ -136,7 +136,7 @@ buildSpectreTiles process 0.0757302sec.
      Feel free to explore the fascinating patterns and colors!
   
 
-* Contents of the CSV File
+* ![Contents of the CSV File](./spectre-tile7.3-12.6-3-559tiles.svg.csv)
 
     This compact CSV file provides essential information for working with Spectre shapes. The quad coordinates of the Spectre shape can be easily extracted from this data.
 
