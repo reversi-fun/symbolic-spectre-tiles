@@ -325,7 +325,23 @@ end
 #### main process ####
 def buildSpectreTiles(n_ITERATIONS)
     tiles = buildSpectreBase()
-    (n_ITERATIONS).times{ tiles = buildSupertiles(tiles)}
+    print("  init quad\n")
+    tiles["Delta"].quad.each_with_index do |quad1, i|
+        print("   quad[#{i}] = #{quad1.to_s}\t(#{quad1.real.to_f})+(#{quad1.imag.to_f})*i\n")
+    end
+(n_ITERATIONS).times{ |n|
+        tiles = buildSupertiles(tiles)
+        print("  #{n+1} Iterationed transformations[\"Delta\"][[6,5,3,0]]\n")
+        [6,5,3,0].each do |i|
+            trsf1 = tiles["Delta"].transformations[i]
+            angle, _ = trot_inv(trsf1)
+            print("   transformations[#{i}] = { angle: #{angle},\t moveTo: (#{trsf1[2].real.to_s}) + (#{trsf1[2].imag.to_s})*i }\n")
+        end
+        print("  #{n+1} Iterationed quad[\"Delta\"]\n")
+        tiles["Delta"].quad.each_with_index do |quad1, i|
+            print("   quad[#{i}] = #{quad1.to_s}\t(#{quad1.real.to_f})+(#{quad1.imag.to_f})*i\n")
+        end
+    }
     return tiles
 end
 
@@ -353,24 +369,128 @@ def print_trot_inv_prof()
     return Trot_inv_prof
 end
 
+# get color array by label
+# Color map from Figure 5.3
+COLOR_MAP_fig53 = {
+	'Gamma'=> [203, 157, 126],
+	'Gamma1'=> [203, 157, 126],
+	'Gamma2'=> [203, 157, 126],
+	'Delta'=> [163, 150, 133],
+	'Theta'=> [208, 215, 150],
+	'Lambda'=> [184, 205, 178],
+	'Xi'=> [211, 177, 144],
+	'Pi'=> [218, 197, 161],
+	'Sigma'=> [191, 146, 126],
+	'Phi'=> [228, 213, 167],
+	'Psi'=> [224, 223, 156]
+}
+
+COLOR_MAP_orig = {
+	'Gamma'=> [255, 255, 255],
+	'Gamma1'=> [255, 255, 255],
+	'Gamma2'=> [255, 255, 255],
+	'Delta'=> [220, 220, 220],
+	'Theta'=> [255, 191, 191],
+	'Lambda'=> [255, 160, 122],
+	'Xi'=> [255, 242, 0],
+	'Pi'=> [135, 206, 250],
+	'Sigma'=> [245, 245, 220],
+	'Phi'=> [0, 255, 0],
+	'Psi'=> [0, 255, 255]
+}
+
+COLOR_MAP_mystics = {
+	'Gamma'=> [196, 201, 169],
+	'Gamma1'=> [196, 201, 169],
+	'Gamma2'=> [156, 160, 116],
+	'Delta'=> [247, 252, 248],
+	'Theta'=> [247, 252, 248],
+	'Lambda'=> [247, 252, 248],
+	'Xi'=> [247, 252, 248],
+	'Pi'=> [247, 252, 248],
+	'Sigma'=> [247, 252, 248],
+	'Phi'=> [247, 252, 248],
+	'Psi'=> [247, 252, 248]
+}
+
+COLOR_MAP_pride = {
+    "Gamma"=>  [255, 255, 255],
+    "Gamma1"=> [ 97,  57,  21],
+    "Gamma2"=> [ 64,  64,  64],
+    "Delta"=>  [  2, 129,  33],
+    "Theta"=>  [  0,  76, 255],
+    "Lambda"=> [118,   0, 136],
+    "Xi"=>     [229,   0,   0],
+    "Pi"=>     [255, 175, 199],
+    "Sigma"=>  [115, 215, 238],
+    "Phi"=>    [255, 141,   0],
+    "Psi"=>    [255, 238,   0]
+}
+
+# ref https://www.chiark.greenend.org.uk/~sgtatham/quasiblog/aperiodic-spectre/#four-colouring
+def get_color_array_by_4color(tile_transformation, label)
+    rgb = {
+        "Gamma2"=> [ 64,  64,  64],
+        "Gamma1"=> [255,   0,   0], "Delta"=>  [255,   0,   0],  "Sigma"=> [255,   0,   0],
+        "Phi"=>    [  0, 255,   0], "Theta"=>  [  0, 255,   0],    "Psi"=> [  0, 255,   0],
+        "Pi"=>     [  0,   0, 255],    "Xi"=>  [  0,   0, 255], "Lambda"=> [  0,   0, 255],
+    }[label]
+    return rgb
+end
+
+$clolr_cluster_no = 0
+$color_no_for_child = $color_no_for_child = ((0 + 360) / 60) % 6
+def get_color_arrayby_childNo(tile_transformation, label)
+    if (label == 'Gamma2')
+        angle, _scale = trot_inv(tile_transformation)
+        $color_no_for_child = ((angle + 240) / 60) % 6
+        $clolr_cluster_no += 1
+        return  [ 64,  64,  64]
+    else
+        rgb =  [[255,   0,   0],
+                [  0, 255,   0],
+                [  0,   0, 255],
+                [255,   0,   0],
+                [  0,   0, 255],
+                [  0, 255,   0],
+                [255,   0,   0],
+                [  0,   0, 255],
+                [  0, 255,   0],
+                [255,   0,   0],
+                [  0, 255,   0],
+                [  0,   0, 255],
+                [  0, 255,   0],
+               ][$color_no_for_child]
+        if rgb
+            if label == 'Gamma1'
+                rgb = rgb.map{|c| c/3}
+            end
+            if not ( $clolr_cluster_no % 2).zero?
+                rgb = rgb.map{|c| (c + 255)/2}
+            end
+            $color_no_for_child = ($color_no_for_child + 1)
+            return rgb
+        else
+            p ["Inalid color {rgb} {$color_no_for_child} {label}, {tile_transformation}", rgb, $color_no_for_child, label,tile_transformation, angle ]
+            return [8,8,8]
+        end
+    end
+end
+
+# get color array by angle
 def get_color_array(tile_transformation, label)
     angle, _scale = trot_inv(tile_transformation)
-    if not Trot_inv_prof.has_key? angle
-        Trot_inv_prof[angle] = 0
-    end
-    Trot_inv_prof[angle] += 1
     if (label == 'Gamma2')
-        Trot_inv_prof[360] += 1
-        return       [0.25,0.25,0.25]
+        return         [ 64, 64, 64]
     else
         rgb = {
-                -180=> [1.0, 0.0,   0],
-                -120=> [0.9, 0.8,   0],
-                -60=>  [0.9, 0.4, 0.4],
-                0=>    [1.0,   0,   0],
-                60=>   [0.4, 0.4, 0.9],
-                120=>  [  0, 0.8, 0.9],
-                180=>  [  0,   0, 1.0]
+                -180=> [255,   0,   0],
+                -120=> [229,   0,   0],
+                -60=>  [229, 102, 102],
+                0=>    [255,   0,   0],
+                60=>   [102, 102, 229],
+                120=>  [  0, 204, 229],
+                180=>  [  0,   0, 255]
         }[angle]
         if rgb
             return rgb
@@ -389,7 +509,11 @@ transformation_max_Y = -Float::INFINITY
 num_tiles = 0
 tiles = buildSpectreTiles(N_ITERATIONS)
 tiles["Delta"].forEachTile(IDENTITY) do |tile_transformation, label|
-    _ = trot_inv(tile_transformation) # validate trasform rotation.
+    angle, _ = trot_inv(tile_transformation) # validate trasform rotation.
+    Trot_inv_prof[angle] += 1
+    if (label == 'Gamma2')
+        Trot_inv_prof[360] += 1
+    end
     transformation_min_X = [transformation_min_X, tile_transformation[2].real.to_f].min
     transformation_min_Y = [transformation_min_Y, tile_transformation[2].imag.to_f].min
     transformation_max_X = [transformation_max_X, tile_transformation[2].real.to_f].max
@@ -397,9 +521,9 @@ tiles["Delta"].forEachTile(IDENTITY) do |tile_transformation, label|
     num_tiles += 1
 end
 print("* #{N_ITERATIONS} Iterations, generated #{num_tiles} tiles\n")
-tiles["Delta"].quad.each_with_index do |quad1, i|
-    print(" quad[#{i}] = #{quad1.to_s}\t(#{quad1.real.to_f})+(#{quad1.imag.to_f})*i\n")
-end
+# tiles["Delta"].quad.each_with_index do |quad1, i|
+#     print(" quad[#{i}] = #{quad1.to_s}\t(#{quad1.real.to_f})+(#{quad1.imag.to_f})*i\n")
+# end
 transformation_min_X = (transformation_min_X - Edge_a * 3 - Edge_b * 3).to_i
 transformation_min_Y = (transformation_min_Y - Edge_a * 3 - Edge_b * 3).to_i
 transformation_max_X = (transformation_max_X + Edge_a * 3 + Edge_b * 3).to_i
@@ -436,7 +560,7 @@ File.open(svgFileName, 'w') do |file|
                 '" r="4" fill="' + (label == "Gamma2" ? 'rgb(128,8,8)' : 'rgb(66,66,66)') + '" fill-opacity="90%" />'
             file.puts '<use xlink:href="#' + (label != "Gamma2" ? 'd0' : 'd1') + '" x="0" y="0" ' +
                 " transform=\"translate(#{trsf[2].real.to_f},#{trsf[2].imag.to_f}) rotate(#{degAngle}) scale(1,#{svgContens_drowSvg_transform_scaleY})\"" +
-                ' fill="' + 'rgb(' + get_color_array(trsf, label).map{|c| (c*255).to_i }.join(",") + ")" +
+                ' fill="' + 'rgb(' + get_color_array(trsf, label).join(",") + ")" +
                 '" fill-opacity="50%" stroke="black" stroke-weight="0.1" />'
             file.puts '<text x="' + Edge_a.to_s + '" y="' + Edge_b.to_s + '"' +
                 " transform=\"translate(#{trsf[2].real.to_f},#{trsf[2].imag.to_f}) rotate(#{degAngle- 60}) " +

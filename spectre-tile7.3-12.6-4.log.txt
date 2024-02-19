@@ -67,11 +67,21 @@ Mystic_SPECTRE_POINTS = [
    quad[1] = ((41.5)*A + (4.5)*B*√3)-((34.5)*B + (11.5)*A*√3)*i	(402.6279441628825)+(-583.2566285183163)*i
    quad[2] = ((34.5)*A + (12.5)*B*√3)-((17.5)*B + (-4.5)*A*√3)*i	(527.0765814495917)+(-164.83339501604596)*i
    quad[3] = ((-10.0)*A + (-7.0)*B*√3)-((8.0)*A*√3)*i	(-226.93575034635197)+(-101.4359353944898)*i
-* 3 Iterations, generated 559 tiles
-buildSpectreTiles process 0.0110732sec.
- each angle's tile count =	{-150=>8, -120=>74, -90=>9, -60=>79, -30=>11, 0=>87, 30=>14, 60=>90, 90=>12, 120=>87, 150=>9, 180=>79, 360=>63}
-"svg file write process 0.0178769sec"
-"csv file write process 0.0185537sec"
-"total process time 0.0475999sec"
+  4 Iterationed transformations["Delta"][[6,5,3,0]]
+   transformations[6] = { angle: -60,	 moveTo: (((-21.0)*A + (27.5)*B*√3)) + (((-55.5)*B + (-55.0)*A*√3))*i }
+   transformations[5] = { angle: 0,	 moveTo: (((27.0)*A + (54.0)*B*√3)) + (((-45.0)*B + (-78.0)*A*√3))*i }
+   transformations[3] = { angle: 60,	 moveTo: (((72.0)*A + (41.5)*B*√3)) + (((13.5)*B + (-38.0)*A*√3))*i }
+   transformations[0] = { angle: 180,	 moveTo: (0) + (0)*i }
+  4 Iterationed quad["Delta"]
+   quad[0] = ((-10.5)*A + (42.5)*B*√3)-((65.5)*B + (74.5)*A*√3)*i	(856.4994448555865)+(-1775.1288694035716)*i
+   quad[1] = ((68.5)*A + (58.5)*B*√3)-((10.5)*B + (66.5)*A*√3)*i	(1786.2039704680606)+(-976.3208781719644)*i
+   quad[2] = ((96.0)*A + (39.0)*B*√3)+((41.0)*B + (-23.0)*A*√3)*i	(1559.2682201217085)+(228.2308546376022)*i
+   quad[3] = ((-41.5)*A + (-4.5)*B*√3)-((34.5)*B + (11.5)*A*√3)*i	(-402.6279441628825)+(-583.2566285183163)*i
+* 4 Iterations, generated 4401 tiles
+buildSpectreTiles process 0.0757302sec.
+ each angle's tile count =	{-150=>74, -120=>638, -90=>79, -60=>659, -30=>87, 0=>674, 30=>90, 60=>664, 90=>87, 120=>641, 150=>79, 180=>629, 360=>496}
+"svg file write process 0.1384604sec"
+"csv file write process 0.1252199sec"
+"total process time 0.3395227sec"
 "save filename="
-"spectre-tile7.3-12.6-3-559tiles.svg"
+"spectre-tile7.3-12.6-4-4401tiles.svg"
