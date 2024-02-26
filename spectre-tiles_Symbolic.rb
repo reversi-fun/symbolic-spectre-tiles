@@ -167,20 +167,22 @@ class Tile
         @quad = SPECTRE_QUAD.dup
     end
 
-    def forEachTile(tile_transformation, &drawer)
+    def forEachTile(tile_transformation, parentInfo, &drawer)
         # print("at Tile.drawPolygon #{@label} quad=#{@quad}")
-        return drawer.call(tile_transformation, @label)
+        return drawer.call(tile_transformation, @label, parentInfo)
     end
 end
 
 class MetaTile
-    attr :tiles, :transformations, :quad
-    def initialize(tiles, transformations, quad=SPECTRE_QUAD.dup)
+    attr :label, :tiles, :transformations, :quad
+    def initialize(label, tiles, transformations, quad=SPECTRE_QUAD.dup)
         """
+        label: Tiles type used for shapes coloring
         tiles: list of Tiles(No points)
         transformations: list of transformation matrices
         quad: MetaTile quad points
         """
+        @label = label
         @tiles = tiles
         @transformations = transformations
         @quad = quad
@@ -191,7 +193,7 @@ class MetaTile
         end
     end
 
-    def forEachTile(transformation, &drawer)
+    def forEachTile(transformation, parentInfo, &drawer)
         """
         recursively expand MetaTiles down to Tiles and draw those
         """
@@ -204,6 +206,8 @@ class MetaTile
                 raise trot_err2
             end
         end
+        clusterInfo = ((@label == 'Gamma') && (@tiles[0].label == 'Gamma1') ) ? parentInfo : (parentInfo + [@label])
+        # p [@tiles.class.name, @tiles.size, parentInfo]
         @tiles.zip(@transformations).each do |tile, trsf|
             if trot_err1 = trot_inValid(trsf)
                 p trot_err1
@@ -211,9 +215,10 @@ class MetaTile
             else
                 # p ["at MetaTile.forEachTile  @tiles.zip(@transformations).each transformation = ",transformation]
                 # p ["at MetaTile.forEachTile  @tiles.zip(@transformations).each trsf =", trsf]
-                tile.forEachTile((mul(transformation, trsf)), &drawer)
+                tile.forEachTile((mul(transformation, trsf)), clusterInfo, &drawer)
             end
         end
+        return
     end
 end
 
@@ -225,7 +230,8 @@ def buildSpectreBase()
         tiles[label] = case label
         when "Gamma" then
             # special rule for Mystic == Gamma == Gamma1 + Gamma2"
-            MetaTile.new([
+            MetaTile.new(label,
+                        [
                             Tile.new("Gamma1"),
                             Tile.new("Gamma2")
                         ],
@@ -314,6 +320,7 @@ def buildSupertiles(input_tiles)
         ["Psi",    ["Psi", "Delta", "Psi", "Phi",   "Sigma", "Psi", "Phi",    "Gamma"]]
     ].each do |label, substitutions|
         tiles[label] = MetaTile.new(
+                        label,
                         substitutions.filter{|subst| subst}.map{|subst| input_tiles[subst]},
                         substitutions.zip(transformations).filter{|subst,_| subst}.map{|subst, trsf| trsf},
                         super_quad
@@ -329,7 +336,7 @@ def buildSpectreTiles(n_ITERATIONS)
     tiles["Delta"].quad.each_with_index do |quad1, i|
         print("   quad[#{i}] = #{quad1.to_s}\t(#{quad1.real.to_f})+(#{quad1.imag.to_f})*i\n")
     end
-(n_ITERATIONS).times{ |n|
+    (n_ITERATIONS).times{ |n|
         tiles = buildSupertiles(tiles)
         print("  #{n+1} Iterationed transformations[\"Delta\"][[6,5,3,0]]\n")
         [6,5,3,0].each do |i|
@@ -428,14 +435,119 @@ COLOR_MAP_pride = {
 }
 
 # ref https://www.chiark.greenend.org.uk/~sgtatham/quasiblog/aperiodic-spectre/#four-colouring
-def get_color_array_by_4color(tile_transformation, label)
+
+COLOR_MAP_four_color = [
+    [ 64,  64, 255], # tile color for Gamma2
+    [255,  64,  64],
+    [ 64, 255,  64],
+    [220, 220,  64],
+    [ 96,  96,  96], # tile color for invalid
+    [255, 255, 255], # tile color for invalid
+];
+
+Color_Index_2d = [
+    [3,2,3,1,3,1,2,1,0],
+    [3,1,3,2,3,2,1,2,0],
+    [3,1,3,2,3,2,1,2,0],  # not Gamma only
+    [3,2,3,1,3,1,2,1,0],
+    [3,1,3,2,3,2,1,2,0],
+    [3,1,3,2,3,2,1,2,0],
+    [3,2,3,1,3,1,2,1,0],  # Gamma1
+    [2,1,-1,3,2,3,1,3,0],  # Gamma2
+];
+
+Color_Index_substitution_L3 = [
+    [0,1,2,3],
+    [0,1,3,2],
+    [0,2,1,3],  # not Gamma only
+    [0,2,3,1],
+    [0,2,1,3],
+    [0,3,2,1],
+    [0,3,1,2],  # Gamma1
+    [0,2,3,1],  # Gamma2
+]
+
+$color_parent_L2_index = -1
+$color_parent_L1_cluster = nil
+$color_parent_L1_index = 0
+$color_child_index = 0
+$color_get_count = 0
+def get_color_array(tile_transformation, label, parentInfo)
+    $color_get_count += 1
+    if $color_parent_L1_cluster != parentInfo[-2]
+        $color_parent_L1_cluster = parentInfo[-2]
+        $color_parent_L1_index = 0
+        $color_parent_L2_index  = ($color_parent_L2_index + 1) % 8
+    end
+    if (parentInfo[-2] == 'Gamma') && ($color_parent_L1_index == 2)
+        $color_parent_L1_index += 1
+    end
+    if (parentInfo[-1] == 'Gamma') && ($color_child_index == 2)
+        $color_child_index += 1
+    end
+    colorIndex = Color_Index_2d[$color_parent_L1_index][$color_child_index]
+    color_index_subst = Color_Index_substitution_L3[$color_parent_L2_index][colorIndex]
+    p [$color_get_count, parentInfo, label, $color_parent_L2_index, $color_parent_L1_index, $color_child_index, colorIndex, color_index_subst]
+    if colorIndex.nil? || (((label == 'Gamma2') && (colorIndex != 0)))
+        print "Invalid color index #{$color_parent_L2_index} #{$color_parent_L1_index} #{$color_child_index} #{colorIndex} #{color_index_subst} #{label} #{parentInfo}\n"
+        colorIndex = 5
+    end
+    rgb = COLOR_MAP_four_color[color_index_subst]
+    # rgb = rgb.map{|c| (c / (($color_parent_L2_index % 3) + 1)).to_i}
+    # rgb = rgb.map{|c| (c + 255) / 2 } if $color_parent_L2_index == 6
+    if label == 'Gamma2'
+        $color_child_index = 0
+        $color_parent_L1_index = ($color_parent_L1_index + 1) % 8
+    else
+        $color_child_index += 1
+    end
+    return rgb
+end
+
+def get_color_array_monoColor(tile_transformation, label, parentInfo)
+    p [parentInfo, label]
     rgb = {
         "Gamma2"=> [ 64,  64,  64],
-        "Gamma1"=> [255,   0,   0], "Delta"=>  [255,   0,   0],  "Sigma"=> [255,   0,   0],
-        "Phi"=>    [  0, 255,   0], "Theta"=>  [  0, 255,   0],    "Psi"=> [  0, 255,   0],
-        "Pi"=>     [  0,   0, 255],    "Xi"=>  [  0,   0, 255], "Lambda"=> [  0,   0, 255],
+        "Gamma1"=> [220, 220, 220],
+        "Delta"=>  [255, 255, 255],  "Sigma"=> [255, 255, 255],
+        "Phi"=>    [255, 255, 255], "Theta"=>  [255, 255, 255],    "Psi"=> [255, 255, 255],
+        "Pi"=>     [255, 255, 255],    "Xi"=>  [255, 255, 255], "Lambda"=> [255, 255, 255],
     }[label]
     return rgb
+end
+
+
+# get_color_array_by_AdjacentID
+$color_no_for_child = 0
+def get_color_array_AdjacentID(tile_transformation, label, adjacentID)
+    p [label, adjacentID]
+    if (label == 'Gamma2')
+        $color_no_for_child = ($color_no_for_child + 2) % 7
+        return  [ 64,  64,  64]
+    else
+        rgb = [
+            [255,   0,   0],
+            [  0, 255,   0],
+            [  0,   0, 255],
+            [255,   0,   0],
+            [  0, 255,   0],
+            [  0,   0, 255],
+            [255,   0,   0],
+            [  0, 255,   0],
+            [  0,   0, 255],
+        ][$color_no_for_child];
+        $color_no_for_child = ($color_no_for_child + 1) % 8
+        if rgb
+            if label == 'Gamma1'
+                rgb = rgb.map{|c| c/3}
+            end
+            return rgb
+        else
+            p ["Inalid color {rgb} {$color_no_for_child} {label}, {tile_transformation}", rgb, label,tile_transformation, adjacentID ]
+            return [8,8,8]
+        end
+        return rgb
+    end
 end
 
 $clolr_cluster_no = 0
@@ -463,7 +575,7 @@ def get_color_arrayby_childNo(tile_transformation, label)
                ][$color_no_for_child]
         if rgb
             if label == 'Gamma1'
-                rgb = rgb.map{|c| c/3}
+                rgb = rgb.map{|c| (c / 3)}
             end
             if not ( $clolr_cluster_no % 2).zero?
                 rgb = rgb.map{|c| (c + 255)/2}
@@ -478,7 +590,7 @@ def get_color_arrayby_childNo(tile_transformation, label)
 end
 
 # get color array by angle
-def get_color_array(tile_transformation, label)
+def get_color_array_by_angle(tile_transformation, label)
     angle, _scale = trot_inv(tile_transformation)
     if (label == 'Gamma2')
         return         [ 64, 64, 64]
@@ -508,7 +620,7 @@ transformation_max_X = -Float::INFINITY
 transformation_max_Y = -Float::INFINITY
 num_tiles = 0
 tiles = buildSpectreTiles(N_ITERATIONS)
-tiles["Delta"].forEachTile(IDENTITY) do |tile_transformation, label|
+tiles["Delta"].forEachTile(IDENTITY, ["Delta"]) do |tile_transformation, label, _|
     angle, _ = trot_inv(tile_transformation) # validate trasform rotation.
     Trot_inv_prof[angle] += 1
     if (label == 'Gamma2')
@@ -552,7 +664,8 @@ File.open(svgFileName, 'w') do |file|
         ' r="8" fill="rgb(0,222,0)" fill-opacity="90%" />'
     end
 
-    tiles["Delta"].forEachTile(IDENTITY) do |tile_transformation, label|
+    seq = 0
+    tiles["Delta"].forEachTile(IDENTITY, ["Delta"]) do |tile_transformation, label,adjacentID|
         trsf = tile_transformation
         degAngle = trot_inv(trsf)[0]
         if degAngle == degAngle
@@ -560,11 +673,14 @@ File.open(svgFileName, 'w') do |file|
                 '" r="4" fill="' + (label == "Gamma2" ? 'rgb(128,8,8)' : 'rgb(66,66,66)') + '" fill-opacity="90%" />'
             file.puts '<use xlink:href="#' + (label != "Gamma2" ? 'd0' : 'd1') + '" x="0" y="0" ' +
                 " transform=\"translate(#{trsf[2].real.to_f},#{trsf[2].imag.to_f}) rotate(#{degAngle}) scale(1,#{svgContens_drowSvg_transform_scaleY})\"" +
-                ' fill="' + 'rgb(' + get_color_array(trsf, label).join(",") + ")" +
+                ' fill="' + 'rgb(' + get_color_array(trsf, label, adjacentID).join(",") + ")" +
                 '" fill-opacity="50%" stroke="black" stroke-weight="0.1" />'
-            file.puts '<text x="' + Edge_a.to_s + '" y="' + Edge_b.to_s + '"' +
-                " transform=\"translate(#{trsf[2].real.to_f},#{trsf[2].imag.to_f}) rotate(#{degAngle- 60}) " +
-                '" font-size="8">' + label + '</text>'
+            file.puts '<text x="' + Edge_a.to_s + '" y="' + (Edge_b * 0.5).to_s + '"' +
+                " transform=\"translate(#{trsf[2].real.to_f},#{trsf[2].imag.to_f}) rotate(#{degAngle- 15}) " +
+                '" font-size="8">' +
+                #  (label) +
+                 (seq+= 1).to_s +
+                 '</text>'
         end
     end
     file.puts '</svg>'
@@ -576,10 +692,10 @@ p "svg file write process #{Time.now - start_time2}sec"
 start_time3 = Time.now
 File.open(svgFileName + ".csv", 'w',  encoding: 'UTF-8') do |file|
     file.puts "\uFEFF" + # BOM
-         "label,\"transform  {A:#{Edge_a}, B:#{Edge_b}}\",angle,transform[0].x,transform[0].y,transform[1].x,transform[1].y,transform[2].x,transform[2].y"  # header
-    tiles["Delta"].forEachTile(IDENTITY) do |trsf, label|
+         "label,\"transform  {A:#{Edge_a}, B:#{Edge_b}}\",angle,transform[0].x,transform[0].y,transform[1].x,transform[1].y,transform[2].x,transform[2].y,pt0-coef:a0,a1, b0,b1"  # header
+    tiles["Delta"].forEachTile(IDENTITY, ["Delta"]) do |trsf, label|
         degAngle = trot_inv(trsf)[0]
-        file.puts "\"#{label}\",\"#{trsf[2].to_s}\",#{degAngle},#{trsf[0].real.to_f},#{trsf[0].imag.to_f},#{trsf[1].real.to_f},#{trsf[1].imag.to_f},#{trsf[2].real.to_f},#{trsf[2].imag.to_f}"
+        file.puts "\"#{label}\",\"#{trsf[2].to_s}\",#{degAngle},#{trsf[0].real.to_f},#{trsf[0].imag.to_f},#{trsf[1].real.to_f},#{trsf[1].imag.to_f},#{trsf[2].real.to_f},#{trsf[2].imag.to_f}, #{to_coef(trsf[2]).join(', ')}"
     end
 end
 p "csv file write process #{Time.now - start_time3}sec"
