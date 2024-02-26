@@ -5,3 +5,6 @@ sp*.txt
 pcv*.txt
 rs*.txt
 *.csv
+!spectre-tile7.3-12.6-4-4401tiles.svg.csv
+*.xlsx
+
