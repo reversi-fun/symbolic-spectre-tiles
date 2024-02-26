@@ -210,8 +210,17 @@ buildSpectreTiles process 0.0757302sec.
    Providing such detailed information in the README file for MPL-licensed source code helps other developers understand the codebase more effectively.
    The self-verification and debugging comments contribute to improving the overall quality of the project. 
 
- 
+## Help me ## four-coloring of a tiling
+   I was able to color 559 tiles with 4 colors based on the Appendix below.
 
+   ![Appendix: four-colourings of the Hats and Spectre tilings](https://www.chiark.greenend.org.uk/~sgtatham/quasiblog/aperiodic-spectre/#four-colouring)
+
+   However, I couldn’t achieve a 4-coloring for the 4401 tiles.
+   The algorithm I applied for coloring up to 559 tiles is not elegant.
+   Could someone please share a more elegant algorithm?
+
+  <img src="./four-coloring-failed-Level4.png" width="60%">four-coloring-failed-Level 4 tiles</img>
+ 
 # Acknowledgments
 This project provides a Ruby script that can generate the weakly chiral aperiodic monotile called Tile(a,b) “Spectre”. 
 This Ruby script is a port of the original Python script available here. 

@@ -7,8 +7,8 @@ require './myComplex2Coef.rb'
 #* increase this number for larger tilings.
 N_ITERATIONS = 4
 #* shape Edge_ration tile(Edge_a, Edge_b)
-Edge_a = 20.0 / (Math.sqrt(3) + 1.0)
-Edge_b = 20.0 - Edge_a
+Edge_a = 10.0 # 20.0 / (Math.sqrt(3) + 1.0)
+Edge_b = 10.0 # 20.0 - Edge_a
 ## end of configilation.
 
 MyNumeric2Coef.A = Edge_a
