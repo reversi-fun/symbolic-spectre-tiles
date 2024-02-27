@@ -1,5 +1,5 @@
 # symbolic-spectre-tiles
-This Ruby script generates symbolic exact plane coordinates for family of "spectres" tiles, expressed as a formula.
+This Ruby script generates symbolic exact plane coordinates for family of "spectres" tiles, expressed as a formula.<br>
 This Ruby script not only generates SVG files for Tile(a,b) coefficients but also produces a CSV file containing exact plane coordinates like the expression:
 ```
 ((-19.5)*A + (6.5)*B*√3)  -  ((28.5)*B + (21.5)*A*√3)*i 
@@ -14,7 +14,7 @@ This Ruby script not only generates SVG files for Tile(a,b) coefficients but als
        The set includes belows:
 
           * when (Edge_a == Edge_b) => "Spectre". 
-          * when (Edge_a != Edge_b) => {“Chevron,” and “Comet”} 
+          * when (Edge_a != Edge_b) => {“Chevron,” and “Comet”} <br>
                                     or {14-sided Hat and Turtle}.
     
     * “Weakly Chiral Aperiodic Monotile”:
@@ -24,7 +24,8 @@ This Ruby script not only generates SVG files for Tile(a,b) coefficients but als
 
     * "The Hat": 
 
-        Refers to the 13-sided polygon that requires its own mirror reflections. Although the shape of ‘The Hat’(13-sided) is similar(14-sided Hat), it is unrelated to this project.
+        Refers to the 13-sided polygon that requires its own mirror reflections.<br>
+       Although the shape of ‘The Hat’(13-sided) is similar(14-sided Hat), it is unrelated to this project.
 
 
 # Usage
@@ -131,7 +132,9 @@ buildSpectreTiles process 0.0757302sec.
 
   * shape's coordinates
 
-    The original JavaScript code used 28 floating-point numbers to draw a single Spectre shape, resulting in a file size of approximately 500 characters. Additionally, the Python code it was based on utilized 6 floating-point numbers, including affine transformation coefficients, and resulted in a file size of around 200 characters. Notably, the Python code often expressed values like cos(60 deg) = 0.5 as lengthy strings such as 0.499999999999.
+    The original JavaScript code used 28 floating-point numbers to draw a single Spectre shape, resulting in a file size of approximately 500 characters.<br>
+    Additionally, the Python code it was based on utilized 6 floating-point numbers, including affine transformation coefficients, and resulted in a file size of around 200 characters.<br>
+    Notably, the Python code often expressed values like cos(60 deg) = 0.5 as lengthy strings such as 0.499999999999.
 
     In contrast, this program generates a more compact SVG file for a single Spectre shape using only 2 floating-point numbers to represent translation (movement) and 1 integer to denote rotation angle.
 
@@ -139,7 +142,7 @@ buildSpectreTiles process 0.0757302sec.
 
   * Spectre Shapes and Their Colors
 
-    In the original JavaScript code, colors were assigned based on the label type for the Spectre shapes.
+    In the original JavaScript code, colors were assigned based on the label type for the Spectre shapes.<br>
     The arrangement of labels in a fractal pattern is crucial evidence for generating tilings of the weakly chiral aperiodic monotile Tile(1,1) known as “Spectre”.
 
     In this code, except for the label=“Gamma2” colors are determined by the rotation angles of the shapes.
@@ -166,36 +169,32 @@ buildSpectreTiles process 0.0757302sec.
     - **transform**: The transformation expressed as a complex number (e.g.,  "((-1.5)*A + (-1.0)*B*√3)+((0.5)*A*√3)*i" ).
     - **angle**: The rotation angle in degrees(0,30,60,90,120,180,240).
     - **transform\[0\].x** ~~ **transform\[1\].y**: Affine transformation coefficients of rotation. it not Includes SVG-file.
-    - **transform\[2\].x** and **transform\[2\].y**: The coordinate of transformation. same as SVG-file.
+    - **transform\[2\].x** and **transform\[2\].y**: The coordinate of transformation. same as SVG-file.<br>
         Its value is the value obtained by substituting the values of the coefficients A and B into the expression in **transform** field.
-        spectre-tiles_Symbolic.rb can calculate more accurate coordinates than spectre-tiles_float.rb.
+        *spectre-tiles_Symbolic.rb* can calculate more accurate coordinates than *spectre-tiles_float.rb* .<br>
         However, as shown in the example below, it does contain floating-point errors.
       
         * A = 20.0 / (Math.sqrt(3) + 1.0) == 7.320508075688773
         * B = 20.0 - A == 12.679491924311227 
         * **transform** (algebraic expression) == "((-19.5)*A + (6.5)*B*√3)-((28.5)*B + (21.5)*A*√3)*i"
-        * transform\[2\].x == -2.842170943040401e-14 
+        * transform\[2\].x == -2.842170943040401e-14<br> 
                               (includes floating-points error) ==> non-obvious, but the correct value is zero.
         * transform\[2\].y == -633.9745962155613 
   
 
     - **pt0-coef a0**, **a1**, **b0**, **b1**:
 
-        An integer factor that indicates the exact planar coordinates of the reference point of the spectre shape.
-
+        An integer factor that indicates the exact planar coordinates of the reference point of the spectre shape.<br>
+        Here,{a0,a1,b0,b1} are integers that appear to be almost uncorrelated arbitrary integers,<br>
+        but have constraints that are not yet known or unknown.
         ```
             pt[0] = (A*(a0 + a1 / 2) + B*(b1 * (sqrt(3) / 2))) +
                     (B*(b0 + b1 / 2) + A*(a1 * (sqrt(3) / 2)))*i
         ```
-        Here,{a0,a1,b0,b1} are integers that appear to be almost uncorrelated arbitrary integers,
-        but have constraints that are not yet known or unknown.
-
 
 
 | label | transform<br> {A:7.320508075688773,<br>  B:12.679491924311227} | angle | transform\[0\].x | transform\[0\].y | transform\[1\].x | transform\[1\].y | transform\[2\].x | transform\[2\].y | pt0-coef:a0 | a1 | b0 | b1 |
-
-|-------|-----------------------------------------------------|-------|-----------------|-----------------|-----------------|-----------------|-----------------|-----------------|----|----|----|----|
-
+|-------|-----------------------------------------------------|----:|-----------------|-----------------|-----------------|-----------------|-----------------|-----------------|---:|---:|---:|---:|
 | "Psi" | "0+0i"                                              | 0     | 1.0             | 0.0             | 0.0             | 1.0             | 0.0             | 0.0             | 0 | 0 | 0 | 0 |
 | "Delta" | "((-1.5)*A)-((0.5)*A*√3)*i"                        | 60    | 0.5             | 0.8660254037844386 | -0.8660254037844386 | 0.5 | -10.98076211353316 | -6.339745962155613 | -1 | -1 | 0 | 0 |
 | "Psi" | "((-1.5)*A + (-1.0)*B*√3)+((0.5)*A*√3)*i" | 60 |0.5 |0.8660254037844386|-0.8660254037844386 |0.5|-32.94228634059948 | 6.339745962155613 | -2 | 1 | 1 | -2 |
@@ -203,8 +202,9 @@ buildSpectreTiles process 0.0757302sec.
 | "Gamma1" | "((-12.0)*A + (18.0)*B*√3)-((36.0)*B + (36.0)*A*√3)*i" |  0 | 1.0 | 0.0 | 0.0 | 1.0 | 307.4613391789284 | -912.9234185504083 | 24 | -72 | -54 | 36 |
 | "Gamma2" | "((-9.0)*A + (17.5)*B*√3)-((34.5)*B + (36.0)*A*√3)*i"  | 30 | 0.8660254037844386| 0.5 | -0.5 |0.8660254037844386 | 318.4421012924616 | -893.9041806639415 | 27 | -72 | -52 | 35 |
 
-## clipping SVG Files
-  To crop a rectangular region from the SVG files generated by the previous command, you can use **svg-cutter2.rb**. 
+
+# clipping SVG Files
+  To crop a rectangular region from the SVG files generated by the previous command, you can use **svg-cutter2.rb**.<br> 
   When specifying the minimum X and Y coordinates as well as the maximum X and Y coordinates for cropping a rectangular region, you can refer to the quad vertex coordinates output by the previous command.
 
   * The general format is: 
@@ -212,12 +212,11 @@ buildSpectreTiles process 0.0757302sec.
   ruby svg-cutter2.rb input_svg_filename min_x min_y max_x max_y
   ```
 
-       * Explanation
-
-          - **Input SVG File**: The original SVG file you want to crop.
-          - **min_x**, **min_y**: The minimum X and Y coordinates of the rectangular clipping area.
-          - **max_x**, **max_y**: The maximum X and Y coordinates of the rectangular clipping area.
-          - **Output File**: The resulting SVG file containing the cropped region.
+  * Explanation
+	- **Input SVG File**: The original SVG file you want to crop.
+	- **min_x**, **min_y**: The minimum X and Y coordinates of the rectangular clipping area.
+	- **max_x**, **max_y**: The maximum X and Y coordinates of the rectangular clipping area.
+	- **Output File**: The resulting SVG file containing the cropped region.
 
   * exsample output
     
