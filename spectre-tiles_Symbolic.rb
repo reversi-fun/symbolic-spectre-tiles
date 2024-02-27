@@ -487,7 +487,7 @@ def get_color_array(tile_transformation, label, parentInfo)
     end
     colorIndex = Color_Index_2d[$color_parent_L1_index][$color_child_index]
     color_index_subst = Color_Index_substitution_L3[$color_parent_L2_index][colorIndex]
-    p [$color_get_count, parentInfo, label, $color_parent_L2_index, $color_parent_L1_index, $color_child_index, colorIndex, color_index_subst]
+    # p [$color_get_count, parentInfo, label, $color_parent_L2_index, $color_parent_L1_index, $color_child_index, colorIndex, color_index_subst]
     if colorIndex.nil? || (((label == 'Gamma2') && (colorIndex != 0)))
         print "Invalid color index #{$color_parent_L2_index} #{$color_parent_L1_index} #{$color_child_index} #{colorIndex} #{color_index_subst} #{label} #{parentInfo}\n"
         colorIndex = 5

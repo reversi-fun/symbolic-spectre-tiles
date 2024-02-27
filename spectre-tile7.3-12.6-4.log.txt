@@ -78,10 +78,10 @@ Mystic_SPECTRE_POINTS = [
    quad[2] = ((96.0)*A + (39.0)*B*√3)+((41.0)*B + (-23.0)*A*√3)*i	(1559.2682201217085)+(228.2308546376022)*i
    quad[3] = ((-41.5)*A + (-4.5)*B*√3)-((34.5)*B + (11.5)*A*√3)*i	(-402.6279441628825)+(-583.2566285183163)*i
 * 4 Iterations, generated 4401 tiles
-buildSpectreTiles process 0.0757302sec.
+buildSpectreTiles process 0.0771663sec.
  each angle's tile count =	{-150=>74, -120=>638, -90=>79, -60=>659, -30=>87, 0=>674, 30=>90, 60=>664, 90=>87, 120=>641, 150=>79, 180=>629, 360=>496}
-"svg file write process 0.1384604sec"
-"csv file write process 0.1252199sec"
-"total process time 0.3395227sec"
+"svg file write process 0.1309115sec"
+"csv file write process 0.1249915sec"
+"total process time 0.3331883sec"
 "save filename="
 "spectre-tile7.3-12.6-4-4401tiles.svg"

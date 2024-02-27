@@ -255,8 +255,8 @@ end
 
 def to_coef(w)
   if (w.real.uv.s.zero?) && (w.real.xy.r.zero?) && (w.imag.uv.r.zero?) && (w.imag.xy.s.zero?)
-    [((w.real.uv.r - w.imag.uv.s) / 2.0).to_i , w.imag.uv.s, # coef of Edge_a
-     ((w.imag.xy.r - w.real.xy.s) / 2.0).to_i , w.real.xy.s] # coef of Edge_b
+    [((w.real.uv.r - w.imag.uv.s) / 2.0).to_i , w.imag.uv.s.to_i, # coef of Edge_a
+     ((w.imag.xy.r - w.real.xy.s) / 2.0).to_i , w.real.xy.s.to_i] # coef of Edge_b
   else
     ["inValid coef",[w.real.uv.r, w.real.uv.s, w.real.xy.r, w.real.xy.s,
       w.imag.uv.r, w.imag.uv.s, w.imag.xy.r, w.imag.xy.s]]
