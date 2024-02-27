@@ -1,10 +1,31 @@
 # symbolic-spectre-tiles
-This Ruby script generates symbolic exact plane coordinates for spectre tiles, expressed as a formula.
+This Ruby script generates symbolic exact plane coordinates for family of "spectres" tiles, expressed as a formula.
 This Ruby script not only generates SVG files for Tile(a,b) coefficients but also produces a CSV file containing exact plane coordinates like the expression:
 ```
 ((-19.5)*A + (6.5)*B*√3)  -  ((28.5)*B + (21.5)*A*√3)*i 
   == -2.842170943040401e-14  -633.9745962155613*i
 ```
+* “family of shapes”
+
+    * “Spectres”:
+
+       Refers to the edges of Tile(Edge_a,Edge_b) that produce a “family of shapes” we call “Spectres”.
+       That is not requires its own mirror reflections.   
+       The set includes belows:
+
+          * when (Edge_a == Edge_b) => "Spectre". 
+          * when (Edge_a != Edge_b) => {“Chevron,” and “Comet”} 
+                                    or {14-sided Hat and Turtle}.
+    
+    * “Weakly Chiral Aperiodic Monotile”:
+      
+       Describes the 14-sided polygon where Tile(1,1) == Tile(Edge_a,Edge_b) {Edge_a == Edge_b} is a monotile.
+
+
+    * "The Hat": 
+
+        Refers to the 13-sided polygon that requires its own mirror reflections. Although the shape of ‘The Hat’(13-sided) is similar(14-sided Hat), it is unrelated to this project.
+
 
 # Usage
 ## Edit Configurations
