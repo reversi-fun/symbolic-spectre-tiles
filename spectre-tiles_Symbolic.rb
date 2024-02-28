@@ -7,8 +7,8 @@ require './myComplex2Coef.rb'
 #* increase this number for larger tilings.
 N_ITERATIONS = 4
 #* shape Edge_ration tile(Edge_a, Edge_b)
-Edge_a = 20.0 / (Math.sqrt(3) + 1.0)
-Edge_b = 20.0 - Edge_a
+Edge_a = 10.0 # 20.0 / (Math.sqrt(3) + 1.0)
+Edge_b = 10.0 # 20.0 - Edge_a
 ## end of configilation.
 
 MyNumeric2Coef.A = Edge_a
@@ -485,9 +485,9 @@ $color_get_count = 0
 def get_color_array(tile_transformation, label, parentInfo)
     $color_get_count += 1
 
-    color_index_subst = $color_parent_index_byLevel.map.with_index.reduce(Color_Index_2d[0][$color_child_index]) do |subColer,(place, levenIndex)|
-        # p ["Color_Index_substitution_lv[levenIndex][place][subColer]",levenIndex, place, subColer, Color_Index_substitution_lv[levenIndex % 2][place][subColer] ]
-        Color_Index_substitution_lv[levenIndex % 2][place][subColer]
+    color_index_subst = $color_parent_index_byLevel.map.with_index.reduce(Color_Index_2d[0][$color_child_index]) do |subColer,(place, levelNo)|
+        # p ["Color_Index_substitution_lv[levelNo][place][subColer]",levelNo, place, subColer, Color_Index_substitution_lv[levelNo % 2][place][subColer] ]
+        Color_Index_substitution_lv[levelNo % 2][place][subColer]
     end
     # p [$color_get_count, parentInfo, label, $color_parent_index_byLevel, $color_child_index, color_index_subst]
     rgb = COLOR_MAP_four_color[color_index_subst]
@@ -504,8 +504,7 @@ def get_color_array(tile_transformation, label, parentInfo)
             carry = 0
             if ($color_parent_index_byLevel[placeIndex] == 2) && (($color_parent_index_byLevel[placeIndex + 1] || 0) == 7) # (parentInfo[-2 - placeIndex] == 'Gamma')
                 $color_parent_index_byLevel[placeIndex] += 1
-            end
-            if $color_parent_index_byLevel[placeIndex] >= (Color_Index_substitution_lv[0].length)
+            elsif $color_parent_index_byLevel[placeIndex] >= (Color_Index_substitution_lv[0].length)
                 $color_parent_index_byLevel[placeIndex] = 0
                 carry = 1
             end
