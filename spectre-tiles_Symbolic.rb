@@ -7,8 +7,8 @@ require './myComplex2Coef.rb'
 #* increase this number for larger tilings.
 N_ITERATIONS = 4
 #* shape Edge_ration tile(Edge_a, Edge_b)
-Edge_a = 10.0 # 20.0 / (Math.sqrt(3) + 1.0)
-Edge_b = 10.0 # 20.0 - Edge_a
+Edge_a = 20.0 / (Math.sqrt(3) + 1.0)
+Edge_b = 20.0 - Edge_a
 ## end of configilation.
 
 MyNumeric2Coef.A = Edge_a
@@ -443,64 +443,76 @@ COLOR_MAP_four_color = [
     [220, 220,  64],
     [ 96,  96,  96], # tile color for invalid
     [255, 255, 255], # tile color for invalid
-];
-
-Color_Index_2d = [
-    [3,2,3,1,3,1,2,1,0],
-    [3,1,3,2,3,2,1,2,0],
-    [3,1,3,2,3,2,1,2,0],  # not Gamma only
-    [3,2,3,1,3,1,2,1,0],
-    [3,1,3,2,3,2,1,2,0],
-    [3,1,3,2,3,2,1,2,0],
-    [3,2,3,1,3,1,2,1,0],  # Gamma1
-    [2,1,-1,3,2,3,1,3,0],  # Gamma2
-];
-
-Color_Index_substitution_L3 = [
-    [0,1,2,3],
-    [0,1,3,2],
-    [0,2,1,3],  # not Gamma only
-    [0,2,3,1],
-    [0,2,1,3],
-    [0,3,2,1],
-    [0,3,1,2],  # Gamma1
-    [0,2,3,1],  # Gamma2
 ]
 
-$color_parent_L2_index = -1
-$color_parent_L1_cluster = nil
-$color_parent_L1_index = 0
+Color_Index_2d = [ # level 0 cluster color pattern
+    [3,2,3,1,3,1,2,1,0], #               substitution[0,1,2,3]
+    [3,1,3,2,3,2,1,2,0], #               substitution[0,2,1,3]
+    [3,1,3,2,3,2,1,2,0], # except Gamma  substitution[0,2,1,3]
+    [3,2,3,1,3,1,2,1,0], #               substitution[0,1,2,3]
+    [3,1,3,2,3,2,1,2,0], #               substitution[0,2,1,3]
+    [3,1,3,2,3,2,1,2,0], #               substitution[0,2,1,3]
+    [3,2,3,1,3,1,2,1,0], # Gamma1        substitution[0,1,2,3]
+    [2,1,2,3,2,3,1,3,0], # Gamma2        substitution[0,3,1,2]
+]
+
+Color_Index_substitution_lv = [
+    [ # even level clusters 0,2,4
+        [0,1,2,3],
+        [0,2,1,3],
+        [0,2,1,3],  # except Gamma
+        [0,1,2,3],
+        [0,2,1,3],
+        [0,2,1,3],
+        [0,1,2,3],  # Gamma1
+        [0,3,1,2],  # Gamma2
+    ],
+    [ # odd level clusters 1,3,5
+        [0,1,2,3],
+        [0,1,3,2],
+        [0,2,1,3],  # except Gamma
+        [0,2,3,1],
+        [0,2,1,3],
+        [0,3,2,1],
+        [0,3,1,2],  # Gamma1
+        [0,2,3,1],  # Gamma2
+    ],
+]
+
 $color_child_index = 0
+$color_parent_index_byLevel = [0]
 $color_get_count = 0
 def get_color_array(tile_transformation, label, parentInfo)
     $color_get_count += 1
-    if $color_parent_L1_cluster != parentInfo[-2]
-        $color_parent_L1_cluster = parentInfo[-2]
-        $color_parent_L1_index = 0
-        $color_parent_L2_index  = ($color_parent_L2_index + 1) % 8
+
+    color_index_subst = $color_parent_index_byLevel.map.with_index.reduce(Color_Index_2d[0][$color_child_index]) do |subColer,(place, levenIndex)|
+        # p ["Color_Index_substitution_lv[levenIndex][place][subColer]",levenIndex, place, subColer, Color_Index_substitution_lv[levenIndex % 2][place][subColer] ]
+        Color_Index_substitution_lv[levenIndex % 2][place][subColer]
     end
-    if (parentInfo[-2] == 'Gamma') && ($color_parent_L1_index == 2)
-        $color_parent_L1_index += 1
-    end
-    if (parentInfo[-1] == 'Gamma') && ($color_child_index == 2)
-        $color_child_index += 1
-    end
-    colorIndex = Color_Index_2d[$color_parent_L1_index][$color_child_index]
-    color_index_subst = Color_Index_substitution_L3[$color_parent_L2_index][colorIndex]
-    # p [$color_get_count, parentInfo, label, $color_parent_L2_index, $color_parent_L1_index, $color_child_index, colorIndex, color_index_subst]
-    if colorIndex.nil? || (((label == 'Gamma2') && (colorIndex != 0)))
-        print "Invalid color index #{$color_parent_L2_index} #{$color_parent_L1_index} #{$color_child_index} #{colorIndex} #{color_index_subst} #{label} #{parentInfo}\n"
-        colorIndex = 5
-    end
+    # p [$color_get_count, parentInfo, label, $color_parent_index_byLevel, $color_child_index, color_index_subst]
     rgb = COLOR_MAP_four_color[color_index_subst]
-    # rgb = rgb.map{|c| (c / (($color_parent_L2_index % 3) + 1)).to_i}
-    # rgb = rgb.map{|c| (c + 255) / 2 } if $color_parent_L2_index == 6
-    if label == 'Gamma2'
-        $color_child_index = 0
-        $color_parent_L1_index = ($color_parent_L1_index + 1) % 8
-    else
+
+    $color_child_index += 1
+    if ($color_child_index == 2) && ($color_parent_index_byLevel[0] == 7) # (parentInfo[-1] == 'Gamma')
         $color_child_index += 1
+    elsif $color_child_index >= (Color_Index_2d[0].length)
+        $color_child_index = 0
+        carry = 1
+        placeIndex = 0
+        while (placeIndex < parentInfo.length) && (carry > 0)
+            $color_parent_index_byLevel[placeIndex] = ($color_parent_index_byLevel[placeIndex] || 0) + carry
+            carry = 0
+            if ($color_parent_index_byLevel[placeIndex] == 2) && (($color_parent_index_byLevel[placeIndex + 1] || 0) == 7) # (parentInfo[-2 - placeIndex] == 'Gamma')
+                $color_parent_index_byLevel[placeIndex] += 1
+            end
+            if $color_parent_index_byLevel[placeIndex] >= (Color_Index_substitution_lv[0].length)
+                $color_parent_index_byLevel[placeIndex] = 0
+                carry = 1
+            end
+            placeIndex += 1
+        end
     end
+
     return rgb
 end
 
@@ -535,7 +547,7 @@ def get_color_array_AdjacentID(tile_transformation, label, adjacentID)
             [255,   0,   0],
             [  0, 255,   0],
             [  0,   0, 255],
-        ][$color_no_for_child];
+        ][$color_no_for_child]
         $color_no_for_child = ($color_no_for_child + 1) % 8
         if rgb
             if label == 'Gamma1'
@@ -620,7 +632,7 @@ transformation_max_X = -Float::INFINITY
 transformation_max_Y = -Float::INFINITY
 num_tiles = 0
 tiles = buildSpectreTiles(N_ITERATIONS)
-tiles["Delta"].forEachTile(IDENTITY, ["Delta"]) do |tile_transformation, label, _|
+tiles["Delta"].forEachTile(IDENTITY, []) do |tile_transformation, label, _|
     angle, _ = trot_inv(tile_transformation) # validate trasform rotation.
     Trot_inv_prof[angle] += 1
     if (label == 'Gamma2')
@@ -665,7 +677,7 @@ File.open(svgFileName, 'w') do |file|
     end
 
     seq = 0
-    tiles["Delta"].forEachTile(IDENTITY, ["Delta"]) do |tile_transformation, label,adjacentID|
+    tiles["Delta"].forEachTile(IDENTITY, []) do |tile_transformation, label,adjacentID|
         trsf = tile_transformation
         degAngle = trot_inv(trsf)[0]
         if degAngle == degAngle
@@ -678,8 +690,8 @@ File.open(svgFileName, 'w') do |file|
             file.puts '<text x="' + Edge_a.to_s + '" y="' + (Edge_b * 0.5).to_s + '"' +
                 " transform=\"translate(#{trsf[2].real.to_f},#{trsf[2].imag.to_f}) rotate(#{degAngle- 15}) " +
                 '" font-size="8">' +
-                #  (label) +
-                 (seq+= 1).to_s +
+                 (label) +
+                #  (seq+= 1).to_s +
                  '</text>'
         end
     end
@@ -693,7 +705,7 @@ start_time3 = Time.now
 File.open(svgFileName + ".csv", 'w',  encoding: 'UTF-8') do |file|
     file.puts "\uFEFF" + # BOM
          "label,\"transform  {A:#{Edge_a}, B:#{Edge_b}}\",angle,transform[0].x,transform[0].y,transform[1].x,transform[1].y,transform[2].x,transform[2].y,pt0-coef:a0,a1, b0,b1"  # header
-    tiles["Delta"].forEachTile(IDENTITY, ["Delta"]) do |trsf, label|
+    tiles["Delta"].forEachTile(IDENTITY, []) do |trsf, label|
         degAngle = trot_inv(trsf)[0]
         file.puts "\"#{label}\",\"#{trsf[2].to_s}\",#{degAngle},#{trsf[0].real.to_f},#{trsf[0].imag.to_f},#{trsf[1].real.to_f},#{trsf[1].imag.to_f},#{trsf[2].real.to_f},#{trsf[2].imag.to_f}, #{to_coef(trsf[2]).join(', ')}"
     end

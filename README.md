@@ -145,9 +145,10 @@ buildSpectreTiles process 0.0757302sec.
     In the original JavaScript code, colors were assigned based on the label type for the Spectre shapes.<br>
     The arrangement of labels in a fractal pattern is crucial evidence for generating tilings of the weakly chiral aperiodic monotile Tile(1,1) known as “Spectre”.
 
-    In this code, except for the label=“Gamma2” colors are determined by the rotation angles of the shapes.
-    This approach facilitates the discovery of locally similar clusters within the generated shapes.
-    Additionally, the labels are displayed using &lt;text&gt; tags that specify the same rotation angle as the shape.
+    In this code, In this code, the tiles are colored using **four colors** to ensure that adjacent tiles have different colors.<br>
+    In addition, this code also includes a mechanism to color the tiles with six different colors based on their rotation angles.<br>
+    This approach facilitates the discovery of locally similar clusters within the generated shapes.<br>
+    Additionally, the labels are displayed using &lt;text&gt; tags that specify the same rotation angle as the shape.<br>
     If you find the label text distracting, you can simply comment out the code that outputs the &lt;text&gt; tags.
 
     Take a look at the image below:
@@ -239,28 +240,36 @@ buildSpectreTiles process 0.0757302sec.
 # Message to Contributors
 ## Adding Self-Verification and Debugging Information
     
-   In the source code of this program, we’ve included code for self-verification and debugging purposes.
-   We encourage adding information for analyzing the features of Spectre tileings and retaining the self-verification code as comments without removing it.
+   In the source code of this program, we’ve included code for self-verification and debugging purposes.<br>
+   For visual validation, I found it convenient to change the colors of the tiles.<br>
+   As a result, I’ve left several color-coding processes for debugging purposes.<br>
+   We encourage adding information for analyzing the features of Spectre tileings and retaining the self-verification code as comments without removing it.<br>
 
-   Providing such detailed information in the README file for MPL-licensed source code helps other developers understand the codebase more effectively.
+   Providing such detailed information in the README file for MPL-licensed source code helps other developers understand the codebase more effectively.<br>
    The self-verification and debugging comments contribute to improving the overall quality of the project. 
 
-## Help me ## four-coloring of a tiling
-   I was able to color 559 tiles with 4 colors based on the Appendix below.
+## Help Needed: Four-Coloring of Tiling
+
+   I was able to color 559 tiles with 4 colors based on the following appendix:<br>
 
    ![Appendix: four-colourings of the Hats and Spectre tilings](https://www.chiark.greenend.org.uk/~sgtatham/quasiblog/aperiodic-spectre/#four-colouring)
 
-   However, I couldn’t achieve a 4-coloring for the 4401 tiles.
-   The algorithm I applied for coloring up to 559 tiles is not elegant.
-   Could someone please share a more elegant algorithm?
+   However, the algorithm I derived solely from the appendix failed to color the 4-layer cluster of 4401 tiles, as below figure. <br>
 
-  <img src="./four-coloring-failed-Level4.png" width="60%">four-coloring-failed-Level 4 tiles</img>
- 
+   <img src="./four-coloring-failed-Level4.png" width="60%">four-coloring-failed-Level 4 tiles</img>
+
+
+   Subsequently, using my own algorithm, I managed to color 34,649 tiles across 5 layers with 4 colors.<br>
+   However, I haven’t been able to verify how many layers my custom algorithm can color with 4 colors.<br>
+   Could someone **provide a validation** method?<br>
+
+  If you have any further requests or need additional assistance, feel free to ask!
+  
 # Acknowledgments
-This project provides a Ruby script that can generate the weakly chiral aperiodic monotile called Tile(a,b) “Spectre”. 
-This Ruby script is a port of the original Python script available here. 
-Additionally, the Python script[4] [5] itself was inspired by the research paper authored by the creators.
-ported from JavaScript from the web app [1] provided [2] by the authors of the original research paper [3].
+This project provides a Ruby script that can generate the weakly chiral aperiodic monotile called Tile(a,b) “Spectre”.<br>
+This Ruby script is a port of the original Python script available here.<br> 
+Additionally, the Python script[4] [5] itself was inspired by the research paper authored by the creators.<br>
+ported from JavaScript from the web app [1] provided [2] by the authors of the original research paper [3].<br>
 
 [1]: https://cs.uwaterloo.ca/~csk/spectre/app.html
 
