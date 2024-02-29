@@ -621,7 +621,7 @@ def get_color_array_by_angle(tile_transformation, label)
             p ["Inalid color {rgb} {label}, {tile_transformation}", rgb, label,tile_transformation, angle ]
         end
     end
-    return [0.5,0.5,0.5]
+    return [128,128,128]
 end
 
 start_time1 = Time.now
