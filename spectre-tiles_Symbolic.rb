@@ -185,10 +185,8 @@ class MetaTile
     ###
     # TODO: parallelize?
     @transformations.size.times do |i| # validate travsform rotation
-      trot_err2 = trot_inValid(@transformations[i])
-      next unless trot_err2
-      p ["ERROR at MetaTile.forEachTile @transformations[#{i}] ", trot_err2, @transformations[i].to_s,
-         @transformations[i]]
+      next unless trot_err2 = trot_inValid(@transformations[i])
+      p ["ERROR at MetaTile.forEachTile @transformations[#{i}] ", trot_err2, @transformations[i].to_s, @transformations[i]]
       p ['quad=', @quad]
       throw trot_err2
     end
@@ -442,13 +440,13 @@ COLOR_MAP_four_color = [
 ]
 Color_Index_2d = [ # level 0 cluster color pattern
   [3, 2, 3, 1, 3, 1, 2, 1, 0], #               substitution[0,1,2,3]
-  [3, 1, 3, 2, 3, 2, 1, 2, 0], #               substitution[0,2,1,3]
-  [3, 1, 3, 2, 3, 2, 1, 2, 0], # except Gamma  substitution[0,2,1,3]
-  [3, 2, 3, 1, 3, 1, 2, 1, 0], #               substitution[0,1,2,3]
-  [3, 1, 3, 2, 3, 2, 1, 2, 0], #               substitution[0,2,1,3]
-  [3, 1, 3, 2, 3, 2, 1, 2, 0], #               substitution[0,2,1,3]
-  [3, 2, 3, 1, 3, 1, 2, 1, 0], # Gamma1        substitution[0,1,2,3]
-  [2, 1, 2, 3, 2, 3, 1, 3, 0]  # Gamma2        substitution[0,3,1,2]
+  # [3, 1, 3, 2, 3, 2, 1, 2, 0], #               substitution[0,2,1,3]
+  # [3, 1, 3, 2, 3, 2, 1, 2, 0], # except Gamma  substitution[0,2,1,3]
+  # [3, 2, 3, 1, 3, 1, 2, 1, 0], #               substitution[0,1,2,3]
+  # [3, 1, 3, 2, 3, 2, 1, 2, 0], #               substitution[0,2,1,3]
+  # [3, 1, 3, 2, 3, 2, 1, 2, 0], #               substitution[0,2,1,3]
+  # [3, 2, 3, 1, 3, 1, 2, 1, 0], # Gamma1        substitution[0,1,2,3]
+  # [2, 1, 2, 3, 2, 3, 1, 3, 0]  # Gamma2        substitution[0,3,1,2]
 ]
 Color_Index_substitution_lv = [
   [ # even level clusters 0,2,4
@@ -479,10 +477,15 @@ $color_get_count = 0
 
 def get_color_array_fourColor(_tile_transformation, _label, parentInfo)
   $color_get_count += 1
-  color_index_subst = $color_parent_index_byLevel.map.with_index.reduce(Color_Index_2d[0][$color_child_index]) do |subColer, (place, levelNo)|
-    # p ["Color_Index_substitution_lv[levelNo][place][subColer]",levelNo, place, subColer, Color_Index_substitution_lv[levelNo % 2][place][subColer] ]
-    Color_Index_substitution_lv[levelNo % 2][place][subColer]
+  # color_index_subst = $color_parent_index_byLevel.map.with_index.reduce(Color_Index_2d[0][$color_child_index]) do |subColer, (place, levelNo)|
+  #   # p ["Color_Index_substitution_lv[levelNo][place][subColer]",levelNo, place, subColer, Color_Index_substitution_lv[levelNo % 2][place][subColer] ]
+  #   Color_Index_substitution_lv[levelNo % 2][place][subColer]
+  # end
+  color_index_subst = Color_Index_2d[0][$color_child_index]
+  $color_parent_index_byLevel.each_with_index do |place, levelNo|
+    color_index_subst = Color_Index_substitution_lv[levelNo % 2][place][color_index_subst]
   end
+
   # p [$color_get_count, parentInfo, label, $color_parent_index_byLevel, $color_child_index, color_index_subst]
   rgb = COLOR_MAP_four_color[color_index_subst]
   $color_child_index += 1
@@ -493,9 +496,10 @@ def get_color_array_fourColor(_tile_transformation, _label, parentInfo)
     carry = 1
     placeIndex = 0
     while (placeIndex < parentInfo.length) && (carry > 0)
-      $color_parent_index_byLevel[placeIndex] = ($color_parent_index_byLevel[placeIndex] || 0) + carry
+      $color_parent_index_byLevel[placeIndex] ||= 0
+      $color_parent_index_byLevel[placeIndex] += carry
       carry = 0
-      if ($color_parent_index_byLevel[placeIndex] == 2) && (($color_parent_index_byLevel[placeIndex + 1] || 0) == 7) # (parentInfo[-2 - placeIndex] == 'Gamma')
+      if ($color_parent_index_byLevel[placeIndex] == 2) && ($color_parent_index_byLevel[placeIndex + 1] == 7) # (parentInfo[-2 - placeIndex] == 'Gamma')
         $color_parent_index_byLevel[placeIndex] += 1
       elsif $color_parent_index_byLevel[placeIndex] >= (Color_Index_substitution_lv[0].length)
         $color_parent_index_byLevel[placeIndex] = 0
