@@ -4,7 +4,7 @@ require './myComplex2Coef'
 
 ## configlation
 # * increase this number for larger tilings.
-N_ITERATIONS = 8
+N_ITERATIONS = 4
 #* shape Edge_ration tile(Edge_a, Edge_b)
 Edge_a = 10.0 # 20.0 / (Math.sqrt(3) + 1.0)
 Edge_b = 10.0 # 20.0 - Edge_a
