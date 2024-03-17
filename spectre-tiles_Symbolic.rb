@@ -5,7 +5,7 @@ require './myComplex2Coef'
 ## configlation
 # * increase this number for larger tilings.
 N_ITERATIONS = 4
-#* shape Edge_ration tile(Edge_a, Edge_b)
+# * shape Edge_ration tile(Edge_a, Edge_b)
 Edge_a = 10.0 # 20.0 / (Math.sqrt(3) + 1.0)
 Edge_b = 10.0 # 20.0 - Edge_a
 ## end of configilation.
@@ -49,12 +49,12 @@ end
 Trot_memo = {
   -30 => [Complex(MyNumeric1Coef.new(0, 1), MyNumeric1Coef.new(-1, 0)),
           Complex(MyNumeric1Coef.new(1, 0), MyNumeric1Coef.new(0, 1)), NoMovePoint],
-    0 => [Complex(MyNumeric1Coef.new(2, 0), MyNumeric1Coef.new(0, 0)),
-          Complex(MyNumeric1Coef.new(0, 0), MyNumeric1Coef.new(2, 0)), NoMovePoint],
-   30 => [Complex(MyNumeric1Coef.new(0, 1), MyNumeric1Coef.new(1, 0)),
-          Complex(MyNumeric1Coef.new(-1, 0), MyNumeric1Coef.new(0, 1)), NoMovePoint],
-   60 => [Complex(MyNumeric1Coef.new(1, 0), MyNumeric1Coef.new(0, 1)),
-          Complex(MyNumeric1Coef.new(0, -1), MyNumeric1Coef.new(1, 0)), NoMovePoint],
+  0 => [Complex(MyNumeric1Coef.new(2, 0), MyNumeric1Coef.new(0, 0)),
+        Complex(MyNumeric1Coef.new(0, 0), MyNumeric1Coef.new(2, 0)), NoMovePoint],
+  30 => [Complex(MyNumeric1Coef.new(0, 1), MyNumeric1Coef.new(1, 0)),
+         Complex(MyNumeric1Coef.new(-1, 0), MyNumeric1Coef.new(0, 1)), NoMovePoint],
+  60 => [Complex(MyNumeric1Coef.new(1, 0), MyNumeric1Coef.new(0, 1)),
+         Complex(MyNumeric1Coef.new(0, -1), MyNumeric1Coef.new(1, 0)), NoMovePoint],
   120 => [Complex(MyNumeric1Coef.new(-1, 0), MyNumeric1Coef.new(0, 1)),
           Complex(MyNumeric1Coef.new(0, -1), MyNumeric1Coef.new(-1, 0)), NoMovePoint],
   180 => [Complex(MyNumeric1Coef.new(-2, 0), MyNumeric1Coef.new(0, 0)),
@@ -156,6 +156,7 @@ end
 
 class Tile
   attr_reader :label, :quad
+
   def initialize(label)
     # _: NO list of Tile coordinate points
     # label: Tile type used for shapes coloring
@@ -169,15 +170,16 @@ class Tile
     drawer.call(tile_transformation, @label, parentInfo)
   end
 end
+
 class MetaTile
   attr_reader :label, :quad, :tiles, :transformations
 
   def initialize(label, tiles, transformations, quad = SPECTRE_QUAD.dup)
     ###
-    #    label: Tiles type used for shapes coloring
-    #    tiles: list of Tiles(No points)
-    #    transformations: list of transformation matrices
-    #    quad: MetaTile quad points
+    # label: Tiles type used for shapes coloring
+    # tiles: list of Tiles(No points)
+    # transformations: list of transformation matrices
+    # quad: MetaTile quad points
     ###
     @label = label
     @tiles = tiles
@@ -185,14 +187,16 @@ class MetaTile
     @quad = quad
     trot_err1 = ''
     return unless transformations.any? { |t| trot_err1 = trot_inValid(t) }
+
     p [trot_err1, t.to_s, tiles, transformations, quad]
     throw trot_err1
   end
 
   def forEachTile(transformation, parentInfo, &drawer)
     ###
-    #   recursively expand MetaTiles down to Tiles and draw those
+    # recursively expand MetaTiles down to Tiles and draw those
     ###
+    clusterInfo = (@label == 'Gamma') && (@tiles[0].label == 'Gamma1') ? parentInfo : (parentInfo + [@label])
     # TODO: parallelize?
     # @transformations.size.times do |i| # validate travsform rotation
     #   next unless trot_err2 = trot_inValid(@transformations[i])
@@ -200,7 +204,6 @@ class MetaTile
     #   p ['quad=', @quad]
     #   throw trot_err2
     # end
-    clusterInfo = (@label == 'Gamma') && (@tiles[0].label == 'Gamma1') ? parentInfo : (parentInfo + [@label])
     # p [@tiles.class.name, @tiles.size, clusterInfo]
     @tiles.zip(@transformations).each do |tile, trsf|
       tile.forEachTile(mul(transformation, trsf), clusterInfo, &drawer)
@@ -210,11 +213,11 @@ class MetaTile
 end
 TILE_NAMES = %w[Gamma Delta Theta Lambda Xi Pi Sigma Phi Psi]
 
-def buildSpectreBase()
+def buildSpectreBase
   tiles = {}
   TILE_NAMES.each do |label|
     tiles[label] = case label
-                   when 'Gamma' then
+                   when 'Gamma'
                      # special rule for Mystic == Gamma == Gamma1 + Gamma2"
                      MetaTile.new(label,
                                   [
@@ -239,8 +242,8 @@ end
 
 def buildSupertiles(input_tiles)
   ###
-  #  iteratively build on current system of tiles
-  #  input_tiles = current system of tiles, initially built with buildSpectreBase()
+  # iteratively build on current system of tiles
+  # input_tiles = current system of tiles, initially built with buildSpectreBase()
   ###
   # First, use any of the nine-unit tiles in "tiles" to obtain a
   # list of transformation matrices for placing tiles within supertiles.
@@ -274,6 +277,7 @@ def buildSupertiles(input_tiles)
   transformations.size.times do |i| # validate travsform rotation
     trot_err2 = trot_inValid(transformations[i])
     next unless trot_err2
+
     p ["ERROR at travsformations[#{i}] ", trot_err2, transformations[i].to_s, transformations[i]]
     p ['quad=', quad]
     throw trot_err2
@@ -314,7 +318,7 @@ end
 
 #### main process ####
 def buildSpectreTiles(n_ITERATIONS)
-  tiles = buildSpectreBase()
+  tiles = buildSpectreBase
   print("  init quad\n")
   tiles['Delta'].quad.each_with_index do |quad1, i|
     print("   quad[#{i}] = #{quad1}\t(#{quad1.real.to_f})+(#{quad1.imag.to_f})*i\n")
@@ -422,10 +426,10 @@ COLOR_MAP_monocolor = {
   'Pi' => [255, 255, 255],
   'Sigma' => [255, 255, 255],
   'Phi' => [255, 255, 255],
-  'Psi' => [255, 255, 255],
+  'Psi' => [255, 255, 255]
 }
 
-def get_color_array_byColor(_tile_transformation, label, _parentInfo, color_map=COLOR_MAP_monocolor)
+def get_color_array_byLabel(_tile_transformation, label, _parentInfo, color_map = COLOR_MAP_monocolor)
   # p [parentInfo, label]
   color_map[label]
 end
@@ -556,6 +560,7 @@ end
 def get_color_array_by_angle(tile_transformation, label, _parentInfo)
   angle, _scale = trot_inv(tile_transformation)
   return [64, 64, 64] if label == 'Gamma2'
+
   rgb = {
     -180 => [255, 0, 0],
     -120 => [229, 0, 0],
@@ -566,6 +571,7 @@ def get_color_array_by_angle(tile_transformation, label, _parentInfo)
     180 => [0, 0, 255]
   }[angle]
   return rgb if rgb
+
   p ['Inalid color {rgb} {label}, {tile_transformation}', rgb, label, tile_transformation, angle]
   [128, 128, 128]
 end
@@ -628,8 +634,8 @@ File.open(svgFileName, 'w') do |file|
     trsf = tile_transformation
     degAngle = trot_inv(trsf)[0]
     if degAngle == degAngle
-      # file.puts '<circle cx="' + trsf[2].real.to_f.to_s + '" cy="' + trsf[2].imag.to_f.to_s +
-      # '" r="4" fill="' + (label == "Gamma2" ? 'rgb(128,8,8)' : 'rgb(66,66,66)') + '" fill-opacity="90%" />'
+      file.puts '<circle cx="' + trsf[2].real.to_f.to_s + '" cy="' + trsf[2].imag.to_f.to_s +
+                '" r="4" fill="' + (label == 'Gamma2' ? 'rgb(128,8,8)' : 'rgb(66,66,66)') + '" fill-opacity="90%" />'
       file.puts '<use xlink:href="#' + (label != 'Gamma2' ? 'd0' : 'd1') + '" x="0" y="0" ' +
                 " transform=\"translate(#{trsf[2].real.to_f},#{trsf[2].imag.to_f}) rotate(#{degAngle}) scale(1,#{svgContens_drowSvg_transform_scaleY})\"" +
                 ' fill="' + 'rgb(' + get_color_array_fourColor(trsf, label, adjacentID).join(',') + ')' +
