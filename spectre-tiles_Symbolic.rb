@@ -4,7 +4,7 @@ require './myComplex2Coef'
 
 ## configlation
 # * increase this number for larger tilings.
-N_ITERATIONS = 4
+N_ITERATIONS = 8
 #* shape Edge_ration tile(Edge_a, Edge_b)
 Edge_a = 10.0 # 20.0 / (Math.sqrt(3) + 1.0)
 Edge_b = 10.0 # 20.0 - Edge_a
@@ -62,6 +62,7 @@ Trot_memo = {
   240 => [Complex(MyNumeric1Coef.new(-1, 0), MyNumeric1Coef.new(0, -1)),
           Complex(MyNumeric1Coef.new(0, 1), MyNumeric1Coef.new(-1, 0)), NoMovePoint]
 }
+
 def trot(degAngle)
   # """
   # degAngle: integer degree angle
@@ -69,10 +70,13 @@ def trot(degAngle)
   throw "Error at trot_memo not defind angle #{degAngle}" unless Trot_memo.has_key? degAngle
   Trot_memo[degAngle]
 end
+
 IDENTITY = trot(0)
 ReverseTrsf = [Complex(MyNumeric1Coef.new(-2, 0), MyNumeric1Coef.new(0, 0)), Complex(MyNumeric1Coef.new(0, 0), MyNumeric1Coef.new(2, 0)), NoMovePoint] # @TODO: Not trot(180).  Instead of rotating 180 degrees, get a mirror image.
+
 def trot_inValid(t)
   return "Error at trot_inValid type is not Array: #{t.class.name} #{t} " if t.class.name != 'Array'
+
   [0, 1].each do |i|
     if t[i].class.name != 'Complex'
       return "Error at trot_inValid element[#{i}] type is not Complex: #{t[i].class.name} #{t[i]} "
@@ -83,6 +87,7 @@ def trot_inValid(t)
   end
   nil
 end
+
 # The trot_inv function takes a rotation matrix and derives the angle it represents,
 #  by calculating the inverse trigonometric functions on the matrix elements.
 def trot_inv(t)
@@ -111,20 +116,25 @@ def trot_inv(t)
   end
   [degAngle1, scaleY]
 end
+
 # validate trot angle data
 Trot_memo.each do |exceptAngle, value|
   # p ["verify trot",exceptAngle, value.class.name, value]
   actualAngle, = trot_inv(value)
   # @TODO ex. (exceptAngle=240 - 360) == (actualAngle=-120)
+
   next unless (exceptAngle != actualAngle) && ((exceptAngle - 360) != actualAngle)
+
   p ["Error at trot_memo not mutch angle #{exceptAngle} != #{actualAngle} "]
 end
+
 # Matrix * point
 # transPt applies a transformation matrix to a point (represented as a Complex number) using matrix multiplication.
 def transPt(trsf, quad)
   Complex(quad.real * trsf[0].real + quad.imag * trsf[1].real,
           quad.real * trsf[0].imag + quad.imag * trsf[1].imag) + trsf[2]
 end
+
 # Affine 2-matrix multiply
 # mul functions multiplies two transformation matrices to combine multiple transforms.
 def mul(trsfA, trsfB)
@@ -184,28 +194,20 @@ class MetaTile
     #   recursively expand MetaTiles down to Tiles and draw those
     ###
     # TODO: parallelize?
-    @transformations.size.times do |i| # validate travsform rotation
-      next unless trot_err2 = trot_inValid(@transformations[i])
-      p ["ERROR at MetaTile.forEachTile @transformations[#{i}] ", trot_err2, @transformations[i].to_s, @transformations[i]]
-      p ['quad=', @quad]
-      throw trot_err2
-    end
+    # @transformations.size.times do |i| # validate travsform rotation
+    #   next unless trot_err2 = trot_inValid(@transformations[i])
+    #   p ["ERROR at MetaTile.forEachTile @transformations[#{i}] ", trot_err2, @transformations[i].to_s, @transformations[i]]
+    #   p ['quad=', @quad]
+    #   throw trot_err2
+    # end
     clusterInfo = (@label == 'Gamma') && (@tiles[0].label == 'Gamma1') ? parentInfo : (parentInfo + [@label])
-    # p [@tiles.class.name, @tiles.size, parentInfo]
+    # p [@tiles.class.name, @tiles.size, clusterInfo]
     @tiles.zip(@transformations).each do |tile, trsf|
-      if trot_err1 = trot_inValid(trsf)
-        p trot_err1
-        throw trot_err1
-      else
-        # p ["at MetaTile.forEachTile  @tiles.zip(@transformations).each transformation = ",transformation]
-        # p ["at MetaTile.forEachTile  @tiles.zip(@transformations).each trsf =", trsf]
-        tile.forEachTile(mul(transformation, trsf), clusterInfo, &drawer)
-      end
+      tile.forEachTile(mul(transformation, trsf), clusterInfo, &drawer)
     end
     nil
   end
 end
-
 TILE_NAMES = %w[Gamma Delta Theta Lambda Xi Pi Sigma Phi Psi]
 
 def buildSpectreBase()
@@ -349,6 +351,7 @@ Trot_inv_prof = {
   180 => 0,
   360 => 0 # Gamma2 total
 }
+
 def print_trot_inv_prof
   print('transformation rotation profile(angle: count)={')
   p Trot_inv_prof
@@ -427,7 +430,6 @@ def get_color_array_byColor(_tile_transformation, label, _parentInfo, color_map=
   color_map[label]
 end
 
-
 # ref https://www.chiark.greenend.org.uk/~sgtatham/quasiblog/aperiodic-spectre/#four-colouring
 
 COLOR_MAP_four_color = [
@@ -439,7 +441,7 @@ COLOR_MAP_four_color = [
   [255, 255, 255] # tile color for invalid
 ]
 Color_Index_2d = [ # level 0 cluster color pattern
-  [3, 2, 3, 1, 3, 1, 2, 1, 0], #               substitution[0,1,2,3]
+  [3, 2, 3, 1, 3, 1, 2, 1, 0] #               substitution[0,1,2,3]
   # [3, 1, 3, 2, 3, 2, 1, 2, 0], #               substitution[0,2,1,3]
   # [3, 1, 3, 2, 3, 2, 1, 2, 0], # except Gamma  substitution[0,2,1,3]
   # [3, 2, 3, 1, 3, 1, 2, 1, 0], #               substitution[0,1,2,3]
@@ -510,7 +512,6 @@ def get_color_array_fourColor(_tile_transformation, _label, parentInfo)
   end
   rgb
 end
-
 
 COLOR_power_in_cluster = {
   'Delta' => 0b001111111,
@@ -585,6 +586,10 @@ tiles['Delta'].forEachTile(IDENTITY, []) do |tile_transformation, label, _|
   transformation_max_X = [transformation_max_X, tile_transformation[2].real.to_f].max
   transformation_max_Y = [transformation_max_Y, tile_transformation[2].imag.to_f].max
   num_tiles += 1
+  if trot_err1 = trot_inValid(tile_transformation)
+    p [trot_err1, angle, tile_transformation]
+    throw trot_err1
+  end
 end
 
 print("* #{N_ITERATIONS} Iterations, generated #{num_tiles} tiles\n")
