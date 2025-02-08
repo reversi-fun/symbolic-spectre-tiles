@@ -2,58 +2,59 @@
 
 class MyNumericBase < Numeric
   CONST_EPSILON = Math.sqrt(Float::EPSILON)
-  Half = 0.5
-  Sqrt3Half = Math.sqrt(3) / 2
+  HALF = 0.5
+  SQRT3_HALF = Math.sqrt(3) / 2
 end
 
 class MyNumericCoef < MyNumericBase
   attr_accessor :r, :s, :c
 
   def initialize(r, s, c)
-    @r = r
-    @s = s
-    @c = c
+    @r, @s, @c = r, s, c
   end
 
   def to_f
-    (@r * @c * Half) + (@s * @c * Sqrt3Half)
+    (@r * @c * HALF) + (@s * @c * SQRT3_HALF)
   end
 
   def +(other)
-    if other.is_a?(Integer)
+    case other
+    when Integer
       MyNumericCoef.new(@r + other, @s, @c)
-    elsif other.is_a?(MyNumericCoef) && (@c == other.c)
+    when MyNumericCoef
+      raise_invalid_argument('+', other) unless @c == other.c
       MyNumericCoef.new(@r + other.r, @s + other.s, @c)
     else
-      p ['Invalid argument for operator ' + self.class.name + ' + ' + other.class.name, self, other]
-      raise ArgumentError.new('Invalid argument for operator ' + self.class.name + ' + ' + other.class.name)
+      raise_invalid_argument('+', other)
     end
   end
 
   def -(other)
-    if other.is_a?(Integer)
+    case other
+    when Integer
       MyNumericCoef.new(@r - other, @s, @c)
-    elsif other.is_a?(MyNumericCoef) && (@c == other.c)
+    when MyNumericCoef
+      raise_invalid_argument('-', other) unless @c == other.c
       MyNumericCoef.new(@r - other.r, @s - other.s, @c)
     else
-      p ['Invalid argument for operator ' + self.class.name + ' - ' + other.class.name, self, other]
-      raise ArgumentError.new('Invalid argument for operator ' + self.class.name + ' + ' + other.class.name)
+      raise_invalid_argument('-', other)
     end
   end
 
   def *(other)
-    if other.is_a?(Integer)
+    case other
+    when Integer
       @c == 1 ? MyNumeric1Coef.new(@r * other, @s * other) : MyNumericCoef.new(@r * other, @s * other, @c)
-    elsif other.is_a?(MyNumeric2Coef) && (@c == 1)
-      other * self
-    elsif other.is_a?(MyNumericCoef) && ((@c == 1) || (other.c == 1))
+    when MyNumeric2Coef
+      other * self if @c == 1
+    when MyNumericCoef
+      return raise_invalid_argument('*', other) unless (@c == 1) || (other.c == 1)
       u = ((@r * other.r) + (3 * (@s * other.s))) / 2.0
       v = ((@r * other.s) + (@s * other.r)) / 2.0
       c = @c * other.c
       c == 1 ? MyNumeric1Coef.new(u, v) : MyNumericCoef.new(u, v, c)
     else
-      p ['Invalid argument for operator ' + self.class.name + ' * ' + other.class.name, self, other]
-      raise ArgumentError.new('Invalid argument for operator ' + self.class.name + ' * ' + other.class.name)
+      raise_invalid_argument('*', other)
     end
   end
 
@@ -70,37 +71,30 @@ class MyNumericCoef < MyNumericBase
   end
 
   def coerce(other)
-    if other.is_a?(Integer) || other.is_a?(MyNumeric)
-      [self, other]
-    else
-      super(other)
-    end
+    [self, other] if other.is_a?(Integer) || other.is_a?(MyNumeric)
   end
 
   def to_s
-    if @c == 1
-      t = []
-      t << "(#{@r / 2.0})" if @r != 0
-      t << "(#{@s / 2.0})*√3" if @s != 0
-      if t.empty?
-        '0'
-      else
-        '(' + t.join(' + ') + ')'
-      end
-
-    else
-      inspect
-    end
+    return inspect unless @c == 1
+    t = []
+    t << "(#{@r / 2.0})" if @r != 0
+    t << "(#{@s / 2.0})*√3" if @s != 0
+    t.empty? ? '0' : '(' + t.join(' + ') + ')'
   end
 
   def inspect
     "MyNumericCoef(c:#{@c}, r:#{@r}, s: #{@s})"
   end
+
+  private
+
+  def raise_invalid_argument(op, other)
+    p ['Invalid argument for operator ' + self.class.name + ' ' + op + ' ' + other.class.name, self, other]
+    raise ArgumentError.new('Invalid argument for operator ' + self.class.name + ' ' + op + ' ' + other.class.name)
+  end
 end
 
 class MyNumeric1Coef < MyNumericCoef
-  attr_accessor :r, :s, :c
-
   def initialize(r, s)
     super(r, s, 1)
   end
@@ -113,11 +107,7 @@ class MyNumeric1Coef < MyNumericCoef
     t = []
     t << "(#{@r / 2.0})" if @r != 0
     t << "(#{@s / 2.0})*√3" if @s != 0
-    if t.empty?
-      '0'
-    else
-      '(' + t.join(' + ') + ')'
-    end
+    t.empty? ? '0' : '(' + t.join(' + ') + ')'
   end
 
   def inspect
@@ -137,12 +127,8 @@ class MyNumeric2Coef < MyNumericBase
   @@A = 1
   @@B = 1
 
-  def self.A=(value)
-    @@A = value
-  end
-
-  def self.B=(value)
-    @@B = value
+  class << self
+    attr_accessor :A, :B
   end
 
   def initialize(uv, xy)
@@ -151,55 +137,38 @@ class MyNumeric2Coef < MyNumericBase
   end
 
   def to_f
-    ((uv.r * @@A * Half) + (uv.s * @@A * Sqrt3Half)) + ((xy.r * @@B * Half) + (xy.s * @@B * Sqrt3Half))
+    ((uv.r * @@A * HALF) + (uv.s * @@A * SQRT3_HALF)) + ((xy.r * @@B * HALF) + (xy.s * @@B * SQRT3_HALF))
   end
 
   def +(other)
-    if other.zero?
-      self
-    elsif other.is_a?(MyNumeric2Coef)
-      MyNumeric2Coef.new(@uv + other.uv, @xy + other.xy)
-    else
-      p ['Invalid argument for operator ' + self.class.name + ' + ' + other.class.name, self, other]
-      raise ArgumentError.new('Invalid argument for operator ' + self.class.name + ' + ' + other.class.name)
-    end
+    return self if other.zero?
+    return MyNumeric2Coef.new(@uv + other.uv, @xy + other.xy) if other.is_a?(MyNumeric2Coef)
+    raise_invalid_argument('+', other)
   end
 
   def -(other)
-    if other.zero?
-      self
-    elsif other.is_a?(MyNumeric2Coef)
-      MyNumeric2Coef.new(@uv - other.uv, @xy - other.xy)
-    else
-      p ['Invalid argument for operator ' + self.class.name + ' - ' + other.class.name, self, other]
-      raise ArgumentError.new('Invalid argument for operator ' + self.class.name + ' - ' + other.class.name, self,
-                              other)
-    end
+    return self if other.zero?
+    return MyNumeric2Coef.new(@uv - other.uv, @xy - other.xy) if other.is_a?(MyNumeric2Coef)
+    raise_invalid_argument('-', other)
   end
 
   def *(other)
-    if other.is_a?(Integer)
-      MyNumeric2Coef.new(@uv * other, @xy * other)
-    elsif other.is_a?(MyNumericCoef) && (other.c == 1)
-      u = ((@uv.r * other.r) + (3 * (@uv.s * other.s))) * Half
-      v = ((@uv.r * other.s) + (@uv.s * other.r)) * Half
+    return MyNumeric2Coef.new(@uv * other, @xy * other) if other.is_a?(Integer)
+    if other.is_a?(MyNumericCoef) && (other.c == 1)
+      u = ((@uv.r * other.r) + (3 * (@uv.s * other.s))) * HALF
+      v = ((@uv.r * other.s) + (@uv.s * other.r)) * HALF
 
-      x = ((@xy.r * other.r) + (3 * (@xy.s * other.s))) * Half
-      y = ((@xy.r * other.s) + (@xy.s * other.r)) * Half
+      x = ((@xy.r * other.r) + (3 * (@xy.s * other.s))) * HALF
+      y = ((@xy.r * other.s) + (@xy.s * other.r)) * HALF
 
       MyNumeric2Coef.new(MyNumericCoef.new(u, v, @@A), MyNumericCoef.new(x, y, @@B))
     else
-      p ['Invalid argument for operator ' + self.class.name + ' * ' + other.class.name, self, other]
-      raise ArgumentError.new('Invalid argument for operator ' + self.class.name + ' * ' + other.class.name)
+      raise_invalid_argument('*', other)
     end
   end
 
   def coerce(other)
-    if other.is_a?(Integer) || other.is_a?(MyNumeric1Coef)
-      [self, other]
-    else
-      super(other)
-    end
+    [self, other] if other.is_a?(Integer) || other.is_a?(MyNumeric1Coef)
   end
 
   def -@
@@ -220,11 +189,7 @@ class MyNumeric2Coef < MyNumericBase
     t << "(#{@xy.r / 2.0})*B" if @xy.r != 0
     t << "(#{@uv.s / 2.0})*A*√3" if @uv.s != 0
     t << "(#{@xy.s / 2.0})*B*√3" if @xy.s != 0
-    if t.empty?
-      '0'
-    else
-      '(' + t.join(' + ') + ')'
-    end
+    t.empty? ? '0' : '(' + t.join(' + ') + ')'
   end
 
   def inspect
@@ -236,13 +201,18 @@ class MyNumeric2Coef < MyNumericBase
   end
 
   def check_consistency
-    result = ((to_f - eval(to_s.gsub('A', "#{@@A}").gsub('B', "#{@@B}").gsub('√3',
-                                                                             "#{Math.sqrt(3)}")).abs) < CONST_EPSILON)
+    result = ((to_f - eval(to_s.gsub('A', "#{@@A}").gsub('B', "#{@@B}").gsub('√3', "#{Math.sqrt(3)}")).abs) < CONST_EPSILON)
     unless result
-      p ['check_consistency failed', to_f,
-         eval(to_s.gsub('A', "#{@@A}").gsub('B', "#{@@B}").gsub('√3', "#{Math.sqrt(3)}"))]
+      p ['check_consistency failed', to_f, eval(to_s.gsub('A', "#{@@A}").gsub('B', "#{@@B}").gsub('√3', "#{Math.sqrt(3)}"))]
     end
     result
+  end
+
+  private
+
+  def raise_invalid_argument(op, other)
+    p ['Invalid argument for operator ' + self.class.name + ' ' + op + ' ' + other.class.name, self, other]
+    raise ArgumentError.new('Invalid argument for operator ' + self.class.name + ' ' + op + ' ' + other.class.name)
   end
 end
 
