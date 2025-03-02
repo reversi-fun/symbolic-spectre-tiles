@@ -47,18 +47,18 @@ class MyNumericCoef < MyNumericBase
   def *(other)
     case other
     when Integer
-      @c == 1 ? MyNumeric1Coef.new(@r * other, @s * other) : MyNumericCoef.new(@r * other, @s * other, @c)
+      return @c == 1 ? MyNumeric1Coef.new(@r * other, @s * other) : MyNumericCoef.new(@r * other, @s * other, @c)
     when MyNumeric2Coef
-      return other * self if @c == 1
+      return other * self if @c == 1 # coerce メソッドだけでは解決できない特定の状況に対処するために必要。
     when MyNumericCoef
       return raise_invalid_argument('*', other) unless (@c == 1) || (other.c == 1)
       u = ((@r * other.r) + (3 * (@s * other.s))) / 2.0
       v = ((@r * other.s) + (@s * other.r)) / 2.0
       c = @c * other.c
-      c == 1 ? MyNumeric1Coef.new(u, v) : MyNumericCoef.new(u, v, c)
+      return c == 1 ? MyNumeric1Coef.new(u, v) : MyNumericCoef.new(u, v, c)
     else
-      raise_invalid_argument('*', other)
     end
+    raise_invalid_argument('*', other)
   end
 
   def -@
@@ -76,7 +76,12 @@ class MyNumericCoef < MyNumericBase
   # 与えられたオブジェクトを、数学的操作において現在のオブジェクトと互換性を持つように強制変換します。
   # @param other [Object] 強制変換するオブジェクト。
   def coerce(other)
-    [self, other] if other.is_a?(Integer)
+    if other.is_a?(Integer) || other.is_a?(MyNumeric2Coef)
+      p ['coerce', other, self] # デバッグ用 強制型変換が呼ばれないことを期待
+      [other, self]
+    else
+      raise_invalid_argument('coerce', other)
+    end
   end
 
   def to_s
@@ -177,8 +182,12 @@ class MyNumeric2Coef < MyNumericBase
   end
 
   def coerce(other)
-    [other, self] if other.is_a?(Integer) || other.is_a?(MyNumeric1Coef)
-    [self, other] if other.is_a?(Integer) || other.is_a?(MyNumeric1Coef)
+    if other.is_a?(Integer) || other.is_a?(MyNumeric1Coef)
+      p ['coerce', other, self] # デバッグ用 強制型変換が呼ばれないことを期待
+      [other, self]
+    else
+      raise_invalid_argument('coerce', other)
+    end
   end
 
   def -@
