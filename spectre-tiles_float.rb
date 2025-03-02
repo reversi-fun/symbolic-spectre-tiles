@@ -495,7 +495,7 @@ print("buildSpectreTiles process #{Time.now - start_time1}sec.\n")
 
 start_time2 = Time.now
 svgContens_drowSvg_transform_scaleY = N_ITERATIONS.even? ? 1 : -1
-svgFileName = "spectre-tile#{Edge_a.truncate(1)}-#{Edge_b.truncate(1)}-#{N_ITERATIONS}-#{num_tiles}tiles.svg"
+svgFileName = "spectre-tile#{Edge_a.truncate(1)}-#{Edge_b.truncate(1)}-#{N_ITERATIONS}-#{num_tiles}tiles-float.svg"
 
 File.open(svgFileName, 'w') do |file|
   viewWidth = transformation_max_X - transformation_min_X
