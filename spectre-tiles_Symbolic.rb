@@ -639,7 +639,7 @@ File.open(svgFileName, 'w') do |file|
       file.puts '<use xlink:href="#' + (label != 'Gamma2' ? 'd0' : 'd1') + '" x="0" y="0" ' +
                 " transform=\"translate(#{trsf[2].real.to_f},#{trsf[2].imag.to_f}) rotate(#{degAngle}) scale(1,#{svgContens_drowSvg_transform_scaleY})\"" +
                 ' fill="' + 'rgb(' + get_color_array_fourColor(trsf, label, adjacentID).join(',') + ')' +
-                '" fill-opacity="50%" stroke="black" stroke-weight="0.1" />'
+                '" fill-opacity="47%" stroke="black" stroke-weight="0.1" />'
       file.puts '<text x="' + Edge_a.to_s + '" y="' + (Edge_b * 0.5).to_s + '"' +
                 " transform=\"translate(#{trsf[2].real.to_f},#{trsf[2].imag.to_f}) rotate(#{degAngle - 15}) " +
                 '" font-size="8">' +

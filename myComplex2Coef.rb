@@ -1,4 +1,5 @@
 # Symbolic Computation, Computer Algebra System
+# require 'mathn'
 
 class MyNumericBase < Numeric
   CONST_EPSILON = Math.sqrt(Float::EPSILON)
@@ -24,6 +25,8 @@ class MyNumericCoef < MyNumericBase
     when MyNumericCoef
       raise_invalid_argument('+', other) unless @c == other.c
       MyNumericCoef.new(@r + other.r, @s + other.s, @c)
+    # when Float　無誤差演算を行うためには、Floatの加算は許可しない
+    #   MyNumericCoef.new(@r + other, @s, @c)
     else
       raise_invalid_argument('+', other)
     end
@@ -46,7 +49,7 @@ class MyNumericCoef < MyNumericBase
     when Integer
       @c == 1 ? MyNumeric1Coef.new(@r * other, @s * other) : MyNumericCoef.new(@r * other, @s * other, @c)
     when MyNumeric2Coef
-      other * self if @c == 1
+      return other * self if @c == 1
     when MyNumericCoef
       return raise_invalid_argument('*', other) unless (@c == 1) || (other.c == 1)
       u = ((@r * other.r) + (3 * (@s * other.s))) / 2.0
@@ -70,8 +73,10 @@ class MyNumericCoef < MyNumericBase
     to_f <=> other.to_f
   end
 
+  # 与えられたオブジェクトを、数学的操作において現在のオブジェクトと互換性を持つように強制変換します。
+  # @param other [Object] 強制変換するオブジェクト。
   def coerce(other)
-    [self, other] if other.is_a?(Integer) || other.is_a?(MyNumeric)
+    [self, other] if other.is_a?(Integer)
   end
 
   def to_s
@@ -127,8 +132,12 @@ class MyNumeric2Coef < MyNumericBase
   @@A = 1
   @@B = 1
 
-  class << self
-    attr_accessor :A, :B
+  def self.A=(value) # attr_accessorはインスタンス変数用のゲッター/セッターを生成するため、クラス変数（@@）の操作には使えません。クラス変数を操作するには、現在のようなクラスメソッドが必要です。
+    @@A = value
+  end
+
+  def self.B=(value)
+    @@B = value
   end
 
   def initialize(uv, xy)
@@ -168,6 +177,7 @@ class MyNumeric2Coef < MyNumericBase
   end
 
   def coerce(other)
+    [other, self] if other.is_a?(Integer) || other.is_a?(MyNumeric1Coef)
     [self, other] if other.is_a?(Integer) || other.is_a?(MyNumeric1Coef)
   end
 
@@ -226,11 +236,24 @@ def to_vec(v)
 end
 
 def to_coef(w)
-  if w.real.uv.s.zero? && w.real.xy.r.zero? && w.imag.uv.r.zero? && w.imag.xy.s.zero?
-    [((w.real.uv.r - w.imag.uv.s) / 2.0).to_i, w.imag.uv.s.to_i, # coef of Edge_a
-     ((w.imag.xy.r - w.real.xy.s) / 2.0).to_i, w.real.xy.s.to_i] # coef of Edge_b
-  else
-    ['inValid coef', [w.real.uv.r, w.real.uv.s, w.real.xy.r, w.real.xy.s,
-                      w.imag.uv.r, w.imag.uv.s, w.imag.xy.r, w.imag.xy.s]]
-  end
+  # Early return for invalid input type
+  return ['Invalid input to to_coef', w] unless w.is_a?(Complex) &&
+         w.real.is_a?(MyNumeric2Coef) && w.imag.is_a?(MyNumeric2Coef)
+
+  real, imag = w.real, w.imag
+
+  # Check if the required components are zero
+  return ['inValid coef', [
+    real.uv.r, real.uv.s, real.xy.r, real.xy.s,
+    imag.uv.r, imag.uv.s, imag.xy.r, imag.xy.s
+  ]] unless real.uv.s.zero? && real.xy.r.zero? &&
+               imag.uv.r.zero? && imag.xy.s.zero?
+
+  # Calculate coefficients only if all conditions are met
+  [
+    ((real.uv.r - imag.uv.s) / 2.0).to_i, # First coefficient of Edge_a
+    imag.uv.s.to_i,                        # Second coefficient of Edge_a
+    ((imag.xy.r - real.xy.s) / 2.0).to_i, # First coefficient of Edge_b
+    real.xy.s.to_i                         # Second coefficient of Edge_b
+  ]
 end
