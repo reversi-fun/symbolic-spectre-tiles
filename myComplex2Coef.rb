@@ -266,3 +266,27 @@ def to_coef(w)
     real.xy.s.to_i                         # Second coefficient of Edge_b
   ]
 end
+
+def from_coef(coef_array)
+  # Validate input is array of 4 numbers
+  return ['Invalid input to from_coef', coef_array] unless coef_array.is_a?(Array) &&
+         coef_array.length == 4 && coef_array.all? { |x| x.is_a?(Numeric) }
+
+  a0, a1, b0, b1 = coef_array # 係数を分解
+
+  # 実数部の計算
+  real_r = 2 * a0 + a1
+  real_s = a1
+  real_x = 0
+  real_y = b1
+
+  # 虚数部の計算
+  imag_r = 0
+  imag_s = a1
+  imag_x = 2 * b0 + b1
+  imag_y = 0
+
+  # 実数部と虚数部を組み合わせて複素数を作成
+  Complex(MyNumeric2Coef.new(MyNumeric1Coef.new(real_r, real_s), MyNumeric1Coef.new(real_x, real_y)),
+          MyNumeric2Coef.new(MyNumeric1Coef.new(imag_r, imag_s), MyNumeric1Coef.new(imag_x, imag_y)))
+end
