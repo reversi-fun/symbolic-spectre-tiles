@@ -81,8 +81,8 @@ def trot_inValid(t)
     if t[i].class.name != 'Complex'
       return "Error at trot_inValid element[#{i}] type is not Complex: #{t[i].class.name} #{t[i]} "
     end
-    if ((tAbs = ((t[i].imag.to_f**2) + (t[i].real.to_f**2))) - 1).abs > MyNumericCoef::CONST_EPSILON
-      return "ValueError at trot_inValid: (t[#{i}].abs ** 2) = #{tAbs} != 1  #{t[i]}"
+    if (((tAbs = ((t[i].imag.to_f**2) + (t[i].real.to_f**2))) - 1).abs > MyNumericCoef::CONST_EPSILON) && (tAbs > MyNumericCoef::CONST_EPSILON)
+      return "ValueError at trot_inValid: (t[#{i}].abs ** 2) = #{tAbs} -1 > #{MyNumericCoef::CONST_EPSILON}  #{t[i]}"
     end
   end
   nil
@@ -94,12 +94,13 @@ def trot_inv(t)
   # T: rotation matrix for Affine transform
   # p ["trot_inv(t)", t]
   if trot_err1 = trot_inValid(t)
-    p [trot_err1, t.to_s]
+    p [trot_err1, t.to_s, t]
     throw trot_err1
   end
   degAngle1 = (Math.atan2(t[0].imag.to_f, t[0].real.to_f) / Math::PI * 180).round.to_i
   degAngle1 += 360 if degAngle1 <= -180
   degAngle2 = (Math.atan2(-t[1].real.to_f, t[1].imag.to_f) / Math::PI * 180).round.to_i
+  degAngle2 += 360 if degAngle2 <= -180
   if degAngle1 == degAngle2 # self validate angle
     scaleY = 1
   elsif degAngle1 == (-degAngle2)
@@ -355,6 +356,7 @@ Trot_inv_prof = {
   180 => 0,
   360 => 0 # Gamma2 total
 }
+# Trot_inv_prof = Hash.new(0) # default 0
 
 def print_trot_inv_prof
   print('transformation rotation profile(angle: count)={')
@@ -582,6 +584,7 @@ transformation_min_Y = Float::INFINITY
 transformation_max_X = -Float::INFINITY
 transformation_max_Y = -Float::INFINITY
 num_tiles = 0
+count_by_label = Hash.new(0)
 tiles = buildSpectreTiles(N_ITERATIONS)
 tiles['Delta'].forEachTile(IDENTITY, []) do |tile_transformation, label, _|
   angle, = trot_inv(tile_transformation) # validate trasform rotation.
@@ -592,6 +595,7 @@ tiles['Delta'].forEachTile(IDENTITY, []) do |tile_transformation, label, _|
   transformation_max_X = [transformation_max_X, tile_transformation[2].real.to_f].max
   transformation_max_Y = [transformation_max_Y, tile_transformation[2].imag.to_f].max
   num_tiles += 1
+  count_by_label[label] += 1
   if trot_err1 = trot_inValid(tile_transformation)
     p [trot_err1, angle, tile_transformation]
     throw trot_err1
@@ -651,6 +655,7 @@ File.open(svgFileName, 'w') do |file|
   file.puts '</svg>'
 end
 print(" each angle's tile count =\t#{Trot_inv_prof}\n")
+print(" each label's tile count =\t#{count_by_label}\n")
 p "svg file write process #{Time.now - start_time2}sec"
 # csv file output for EXCEL UTF-8 with BOM
 start_time3 = Time.now

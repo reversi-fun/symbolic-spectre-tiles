@@ -3,7 +3,7 @@
 
 class MyNumericBase < Numeric
   CONST_EPSILON = Math.sqrt(Float::EPSILON)
-  HALF = 0.5
+  HALF = 0.5 # Rational(1, 2)
   SQRT3_HALF = Math.sqrt(3) / 2
 end
 
@@ -15,7 +15,7 @@ class MyNumericCoef < MyNumericBase
   end
 
   def to_f
-    (@r * @c * HALF) + (@s * @c * SQRT3_HALF)
+    ((@r * @c) * HALF.to_f) + ((@s * @c) * SQRT3_HALF)
   end
 
   def +(other)
@@ -23,7 +23,7 @@ class MyNumericCoef < MyNumericBase
     when Integer
       MyNumericCoef.new(@r + other, @s, @c)
     when MyNumericCoef
-      raise_invalid_argument('+', other) unless @c == other.c
+      raise_invalid_argument('+', other) unless @c == other.c || other.zero? || self.zero?
       MyNumericCoef.new(@r + other.r, @s + other.s, @c)
     # when Float　無誤差演算を行うためには、Floatの加算は許可しない
     #   MyNumericCoef.new(@r + other, @s, @c)
@@ -52,8 +52,8 @@ class MyNumericCoef < MyNumericBase
       return other * self if @c == 1 # coerce メソッドだけでは解決できない特定の状況に対処するために必要。
     when MyNumericCoef
       return raise_invalid_argument('*', other) unless (@c == 1) || (other.c == 1)
-      u = ((@r * other.r) + (3 * (@s * other.s))) / 2.0
-      v = ((@r * other.s) + (@s * other.r)) / 2.0
+      u = ((@r * other.r) + (3 * (@s * other.s))) * HALF
+      v = ((@r * other.s) + (@s * other.r)) * HALF
       c = @c * other.c
       return c == 1 ? MyNumeric1Coef.new(u, v) : MyNumericCoef.new(u, v, c)
     else
@@ -176,6 +176,26 @@ class MyNumeric2Coef < MyNumericBase
       y = ((@xy.r * other.s) + (@xy.s * other.r)) * HALF
 
       MyNumeric2Coef.new(MyNumericCoef.new(u, v, @@A), MyNumericCoef.new(x, y, @@B))
+    elsif other.is_a?(MyNumeric2Coef) && other.uv.c == 1 && other.xy.c == 1 && (other.uv.zero? || other.xy.zero? )
+      p ['*** not support MyNumeric2Coef * MyNumeric2Coef', self, other] # デバッグ用
+            # (uA + vB) * (u'A + v'B) = (uu'AA + uv'AB + vu'BA + vv'BB)
+      # ここで AA = -A + 2B, AB = A + B, BB = 2A + B
+      # uA * u'A = (u*u')(-A + 2B) = -(u*u')A + 2(u*u')B
+      # uA * v'B = (u*v')(A + B) = (u*v')A + (u*v')B
+      # vB * u'A = (v*u')(A + B) = (v*u')A + (v*u')B
+      # vB * v'B = (v*v')(2A + B) = 2(v*v')A + (v*v')B
+
+      new_uv = (@uv * other.uv) * MyNumeric1Coef.new(-1, 0) +
+               (@uv * other.xy) * MyNumeric1Coef.new(1, 0) +
+               (@xy * other.uv) * MyNumeric1Coef.new(1, 0) +
+               (@xy * other.xy) * MyNumeric1Coef.new(2, 0)
+
+      new_xy = (@uv * other.uv) * MyNumeric1Coef.new(2, 0) +
+               (@uv * other.xy) * MyNumeric1Coef.new(1, 0) +
+               (@xy * other.uv) * MyNumeric1Coef.new(1, 0) +
+               (@xy * other.xy) * MyNumeric1Coef.new(1, 0)
+
+      MyNumeric2Coef.new(new_uv, new_xy)
     else
       raise_invalid_argument('*', other)
     end
