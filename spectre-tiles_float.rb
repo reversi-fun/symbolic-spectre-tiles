@@ -473,6 +473,7 @@ transformation_min_Y = Float::INFINITY
 transformation_max_X = -Float::INFINITY
 transformation_max_Y = -Float::INFINITY
 num_tiles = 0
+count_by_label = Hash.new(0)
 tiles = buildSpectreTiles(N_ITERATIONS)
 tiles['Delta'].forEachTile(IDENTITY, []) do |tile_transformation, label, _|
   angle, = trot_inv(tile_transformation) # validate trasform rotation.
@@ -482,6 +483,7 @@ tiles['Delta'].forEachTile(IDENTITY, []) do |tile_transformation, label, _|
   transformation_min_Y = [transformation_min_Y, tile_transformation[2].imag.to_f].min
   transformation_max_X = [transformation_max_X, tile_transformation[2].real.to_f].max
   transformation_max_Y = [transformation_max_Y, tile_transformation[2].imag.to_f].max
+  count_by_label[label] += 1
   num_tiles += 1
 end
 print("* #{N_ITERATIONS} Iterations, generated #{num_tiles} tiles\n")
@@ -539,6 +541,7 @@ File.open(svgFileName, 'w') do |file|
   file.puts '</svg>'
 end
 print(" each angle's tile count =\t#{Trot_inv_prof}\n")
+print(" each label's tile count =\t#{count_by_label}\n")
 p "svg file write process #{Time.now - start_time2}sec"
 
 p "total process time #{Time.now - start_time1}sec"
