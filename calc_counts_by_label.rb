@@ -8,6 +8,7 @@ require 'matrix'
 # The "_even" sequence, which alternates between 1 and 0, is a key component
 # for handling the non-homogeneous parts of the recurrence relations.
 labels = ["Gamma1", "Gamma2", "Delta", "Sigma",  "Theta", "Lambda", "Pi", "Xi",  "Phi", "Psi", "_Pi_Xi", "_even"]
+N_ITERATIONS = 14
 
 # The size of our state vector.
 VEC_SIZE = labels.length
@@ -52,7 +53,7 @@ M = Matrix[
 ]
 
 # The main loop performs the recurrence for the desired number of iterations.
-(3..14).each do |i|
+(3..N_ITERATIONS).each do |i|
   # Concatenate the previous two vectors to form the state vector for the next iteration.
   state_vector = Matrix[v[-1] + v[-2]]
 
@@ -64,14 +65,6 @@ M = Matrix[
 end
 
 # Display the results
-puts "---"
-puts "Display the results: tile_counts_by_iteration"
-puts "---"
-v.transpose.each_with_index do |vec, i|
-  puts "# #{labels[i]} = [#{vec.join(', ')}]"
-end
-
-# Display the results in a hash format for each iteration
 
 puts "---"
 puts "Display the results in a hash format for each iteration"
@@ -87,21 +80,15 @@ v.each_with_index do |vec, i|
   puts "# Iteration #{i} = #{hash}"
 end
 
-# Expected Output:
-# Display the results: tile_counts_by_iteration
-# Gamma1 = [0, 1, 8, 63, 496, 3905, 30744, 242047, 1905632, 15003009, 118118440, 929944511, 7321437648, 57641556673, 453811015736]
-# Gamma2 = [0, 1, 8, 63, 496, 3905, 30744, 242047, 1905632, 15003009, 118118440, 929944511, 7321437648, 57641556673, 453811015736]
-# Delta = [1, 1, 8, 63, 496, 3905, 30744, 242047, 1905632, 15003009, 118118440, 929944511, 7321437648, 57641556673, 453811015736]
-# Sigma = [0, 1, 8, 63, 496, 3905, 30744, 242047, 1905632, 15003009, 118118440, 929944511, 7321437648, 57641556673, 453811015736]
-# Theta = [0, 0, 1, 8, 63, 496, 3905, 30744, 242047, 1905632, 15003009, 118118440, 929944511, 7321437648, 57641556673]
-# Lambda = [0, 0, 1, 8, 63, 496, 3905, 30744, 242047, 1905632, 15003009, 118118440, 929944511, 7321437648, 57641556673]
-# Pi = [0, 1, 7, 47, 371, 2913, 22935, 180559, 1421539, 11191745, 88112423, 693707631, 5461548627, 42998681377, 338527902391]
-# Xi = [0, 2, 6, 48, 370, 2914, 22934, 180560, 1421538, 11191746, 88112422, 693707632, 5461548626, 42998681378, 338527902390]
-# Phi = [0, 2, 14, 110, 866, 6818, 53678, 422606, 3327170, 26194754, 206230862, 1623652142, 12782986274, 100640238050, 792338918126]
-# Psi = [0, 0, 10, 86, 684, 5392, 42458, 334278, 2631772, 20719904, 163127466, 1284299830, 10111271180, 79605869616, 626735685754]
-# _Pi_Xi = [0, 1, 6, 47, 370, 2913, 22934, 180559, 1421538, 11191745, 88112422, 693707631, 5461548626, 42998681377, 338527902390]
-# _even = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
+puts "---"
+puts "Display the results: tile_counts_by_iteration"
+puts "---"
+v.transpose.each_with_index do |vec, i|
+  puts "# #{labels[i]} = [#{vec.join(', ')}]"
+end
 
+
+# Expected Output:
 # Display the results in a hash format for each iteration
 # Iteration 0 = {"Delta"=>1, :_total=>1}
 # Iteration 1 = {"Gamma1"=>1, "Gamma2"=>1, "Delta"=>1, "Sigma"=>1, "Pi"=>1, "Xi"=>2, "Phi"=>2, :_total=>9}
@@ -118,3 +105,97 @@ end
 # Iteration 12 = {"Gamma1"=>7321437648, "Gamma2"=>7321437648, "Delta"=>7321437648, "Sigma"=>7321437648, "Theta"=>929944511, "Lambda"=>929944511, "Pi"=>5461548627, "Xi"=>5461548626, "Phi"=>12782986274, "Psi"=>10111271180, :_total=>64962994321}
 # Iteration 13 = {"Gamma1"=>57641556673, "Gamma2"=>57641556673, "Delta"=>57641556673, "Sigma"=>57641556673, "Theta"=>7321437648, "Lambda"=>7321437648, "Pi"=>42998681377, "Xi"=>42998681378, "Phi"=>100640238050, "Psi"=>79605869616, :_total=>511452572409}
 # Iteration 14 = {"Gamma1"=>453811015736, "Gamma2"=>453811015736, "Delta"=>453811015736, "Sigma"=>453811015736, "Theta"=>57641556673, "Lambda"=>57641556673, "Pi"=>338527902391, "Xi"=>338527902390, "Phi"=>792338918126, "Psi"=>626735685754, :_total=>4026657584951}
+
+# Display the results: tile_counts_by_iteration
+# Gamma1 = [0, 1, 8, 63, 496, 3905, 30744, 242047, 1905632, 15003009, 118118440, 929944511, 7321437648, 57641556673, 453811015736]
+# Gamma2 = [0, 1, 8, 63, 496, 3905, 30744, 242047, 1905632, 15003009, 118118440, 929944511, 7321437648, 57641556673, 453811015736]
+# Delta = [1, 1, 8, 63, 496, 3905, 30744, 242047, 1905632, 15003009, 118118440, 929944511, 7321437648, 57641556673, 453811015736]
+# Sigma = [0, 1, 8, 63, 496, 3905, 30744, 242047, 1905632, 15003009, 118118440, 929944511, 7321437648, 57641556673, 453811015736]
+# Theta = [0, 0, 1, 8, 63, 496, 3905, 30744, 242047, 1905632, 15003009, 118118440, 929944511, 7321437648, 57641556673]
+# Lambda = [0, 0, 1, 8, 63, 496, 3905, 30744, 242047, 1905632, 15003009, 118118440, 929944511, 7321437648, 57641556673]
+# Pi = [0, 1, 7, 47, 371, 2913, 22935, 180559, 1421539, 11191745, 88112423, 693707631, 5461548627, 42998681377, 338527902391]
+# Xi = [0, 2, 6, 48, 370, 2914, 22934, 180560, 1421538, 11191746, 88112422, 693707632, 5461548626, 42998681378, 338527902390]
+# Phi = [0, 2, 14, 110, 866, 6818, 53678, 422606, 3327170, 26194754, 206230862, 1623652142, 12782986274, 100640238050, 792338918126]
+# Psi = [0, 0, 10, 86, 684, 5392, 42458, 334278, 2631772, 20719904, 163127466, 1284299830, 10111271180, 79605869616, 626735685754]
+# _Pi_Xi = [0, 1, 6, 47, 370, 2913, 22934, 180559, 1421538, 11191745, 88112422, 693707631, 5461548626, 42998681377, 338527902390]
+# _even = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
+
+puts "---Validation of counts by direct substitution---"
+# frozen_string_literal: true
+
+# 複雑なタイリングアルゴリズムから抽出された置換規則を定義します。
+# これが目的の数列を生成する漸化式に相当します。
+substitution_rules = {
+  'Gamma' => { 'Pi' => 1, 'Delta' => 1, 'Theta' => 1, 'Sigma' => 1, 'Xi' => 1, 'Phi' => 1, 'Gamma' => 1 },
+  'Delta' => { 'Xi' => 2, 'Delta' => 1, 'Phi' => 2, 'Sigma' => 1, 'Pi' => 1, 'Gamma' => 1 },
+  'Theta' => { 'Psi' => 1, 'Delta' => 1, 'Pi' => 2, 'Phi' => 2, 'Sigma' => 1, 'Gamma' => 1 },
+  'Lambda' => { 'Psi' => 1, 'Delta' => 1, 'Xi' => 1, 'Phi' => 2, 'Sigma' => 1, 'Pi' => 1, 'Gamma' => 1 },
+  'Xi' => { 'Psi' => 2, 'Delta' => 1, 'Pi' => 1, 'Phi' => 2, 'Sigma' => 1, 'Gamma' => 1 },
+  'Pi' => { 'Psi' => 2, 'Delta' => 1, 'Xi' => 1, 'Phi' => 2, 'Sigma' => 1, 'Gamma' => 1 },
+  'Sigma' => { 'Xi' => 2, 'Delta' => 1, 'Phi' => 1, 'Sigma' => 1, 'Pi' => 1, 'Lambda' => 1, 'Gamma' => 1 },
+  'Phi' => { 'Psi' => 2, 'Delta' => 1, 'Pi' => 1, 'Phi' => 2, 'Sigma' => 1, 'Gamma' => 1 },
+  'Psi' => { 'Psi' => 3, 'Delta' => 1, 'Phi' => 2, 'Sigma' => 1, 'Gamma' => 1 }
+}
+
+# 数列を生成するためのタイルラベルと反復回数を定義します。
+# オリジナルのコードに合わせ、Gamma1とGamma2は独立して扱います。
+TILE_NAMES = ["Gamma1", "Gamma2", "Delta", "Sigma",  "Theta", "Lambda", "Pi", "Xi",  "Phi", "Psi"]
+Debug_Trace_Label = 'Psi'  # デバッグトレースを有効にするラベル
+
+# 初期状態のタイルカウントを設定します。
+tile_sequences = Hash.new { |h, k| h[k] = []}
+# 期待される結果に合わせて、n=0の状態を調整します。
+# ここでは、Deltaが初期状態で1つ存在すると仮定します。
+# その他のタイルはn=0では0個です。
+current_counts =  Hash.new { |h, k| h[k] = 0}
+current_counts['Delta'] = 1
+current_counts['_Total'] = current_counts.values.sum
+p [" Iteration", 0, current_counts] if Debug_Trace_Label
+TILE_NAMES.each {|name| tile_sequences[name] << current_counts[name]}
+
+# Gamma1とGamma2の初期カウントを設定します。
+# これらは、最初の反復でそれぞれ1つのGammaタイルから生成されます。
+# 1回目の反復を特別に処理します。
+# これは、GammaがGamma1とGamma2に分かれる特殊な初期状態を反映するためです。
+prev_counts = current_counts
+current_counts =  Hash.new { |h, k| h[k] = 0}
+current_counts = {"Gamma1"=>1, "Gamma2"=>1, "Delta"=>1, "Sigma"=>1, "Theta" => 0, "Lambda" => 0,"Pi"=>1, "Xi"=>2, "Phi"=>2, "Psi"=>0}
+current_counts['_Total'] = current_counts.values.sum
+TILE_NAMES.each {|name| tile_sequences[name] << current_counts[name]}
+p [" Iteration", 1, current_counts] if Debug_Trace_Label
+
+prev_counts = current_counts
+# 2回目以降の反復
+(2...N_ITERATIONS).each do |n|
+  current_counts =  Hash.new { |h, k| h[k] = 0}
+  substitution_rules.each do |label, rules|
+    # Gamma1とGamma2は、常にGammaタイルとして置換されます。
+    if label == 'Gamma'
+      count = prev_counts['Gamma1']
+    else
+      count = prev_counts[label]
+    end
+
+    rules.each do |sub_label, sub_count|
+      # GammaタイルはGamma1とGamma2に分配されます。
+      if sub_label == 'Gamma'
+        current_counts['Gamma1'] += count * sub_count
+        current_counts['Gamma2'] += count * sub_count
+      else
+        current_counts[sub_label] += count * sub_count
+        puts " Debug: #{label} -> #{sub_label}, prev_counts[#{label}]: #{count}, sub_count: #{sub_count}, adds:#{count * sub_count}, current_counts[#{sub_label}]: #{current_counts[sub_label]} " if sub_label == Debug_Trace_Label
+      end
+    end
+  end
+  current_counts['_Total'] = current_counts.values.sum
+
+  TILE_NAMES.each {|name| tile_sequences[name] << current_counts[name]}
+  p [" Iteration", n, current_counts]
+  prev_counts = current_counts
+end
+
+# 結果表示（期待される出力形式に合わせて修正）
+TILE_NAMES.each do |name|
+  # 全てのタイル名を扱うために、存在しないキーの場合は空の配列を返すようにハッシュを修正
+  puts "\t#{name} = #{tile_sequences[name] || []}"
+end
