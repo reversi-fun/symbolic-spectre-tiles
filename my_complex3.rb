@@ -40,7 +40,7 @@ class MyComplex
 
   # MyComplex と MyComplex の乗算
   def *(other)
-    unless other.is_a?(MyComplex)
+    unless other.is_a?(MyComplex) || other.is_a?(Complex)
       raise TypeError, "MyComplex * #{other.class} はサポートされていません"
     end
     new_real = (@real * other.real) - (@imag * other.imag)
@@ -52,9 +52,20 @@ class MyComplex
   # 事前定義された定数配列から回転複素数を取得
   def rotate(m)
     rotation_complex = ROT_60_DEG[m % 6]
-    # 計算結果を MyComplex の新しいインスタンスとして返す
-    MyComplex.new(self.real * rotation_complex.real - self.imag * rotation_complex.imag,
-                  self.real * rotation_complex.imag + self.imag * rotation_complex.real )
+
+    # ROT_60_DEG の要素は既存コードでは Complex (MyNumeric1Coef) で定義されている場合があります。
+    # MyComplex と Complex の両方に対応するために型チェックを行い、可能なら乗算に委譲します。
+    if rotation_complex.is_a?(MyComplex)
+      # MyComplex 同士の乗算に委譲
+      return self * rotation_complex
+    elsif rotation_complex.is_a?(Complex)
+      # rotation_complex.real/imag は MyNumeric1Coef のことが多いので既存の演算を利用
+      new_real = (@real * rotation_complex.real) - (@imag * rotation_complex.imag)
+      new_imag = (@real * rotation_complex.imag) + (@imag * rotation_complex.real)
+      return MyComplex.new(new_real, new_imag)
+    else
+      raise TypeError, "Unsupported rotation constant type: #{rotation_complex.class}"
+    end
   end
 
   # 最終的な浮動小数点数に変換する
@@ -74,8 +85,22 @@ class MyComplex
   def inspect
     "MyComplex(#{@real.inspect}, #{@imag.inspect})"
   end
-end
 
+  # 標準の Complex から MyComplex を作るヘルパー
+  def self.from_c(c)
+    return c if c.is_a?(MyComplex)
+    unless c.is_a?(Complex)
+      raise TypeError, "Expected Complex or MyComplex, got #{c.class}"
+    end
+
+    # from_coef などが返す Complex の実部/虚部は MyNumeric2Coef のはず
+    if c.real.is_a?(MyNumeric2Coef) && c.imag.is_a?(MyNumeric2Coef)
+      return MyComplex.new(c.real, c.imag)
+    end
+
+    raise TypeError, "Unsupported Complex internal structure for conversion to MyComplex"
+  end
+end
 
 # 浮動小数点数を使わず、係数を直接指定
   ROT_60_DEG = [
@@ -92,6 +117,20 @@ end
     # 300度: 1/2 - i*sqrt(3)/2
     Complex(MyNumeric1Coef.new(1, 0), MyNumeric1Coef.new(0, -1))
   ]
+# ROT_60_DEG = [
+#   # 0度: 1 + 0i
+#   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2, 0), MyNumeric1Coef.new(0, 0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+#   # 60度: 1/2 + i*sqrt(3)/2
+#   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(1, 0), MyNumeric1Coef.new(0, 0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(1,0))),
+#   # 120度: -1/2 + i*sqrt(3)/2
+#   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(-1, 0), MyNumeric1Coef.new(0, 0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(1,0))),
+#   # 180度: -1 + 0i
+#   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(-2, 0), MyNumeric1Coef.new(0, 0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+#   # 240度: -1/2 - i*sqrt(3)/2
+#   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(-1, 0), MyNumeric1Coef.new(0, 0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(-1,0))),
+#   # 300度: 1/2 - i*sqrt(3)/2
+#   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(1, 0), MyNumeric1Coef.new(0, 0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(-1,0)))
+# ]
 
 # 注釈:
 # MyNumeric2Coef クラスの乗算 (*) は、すでに MyNumeric1Coef や Integer との乗算時に

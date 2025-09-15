@@ -24,63 +24,71 @@ MyNumeric2Coef.B = Edge_b
 # 各頂点は MyComplex オブジェクトで表現されます。
 TILE_VERTICES = {
   gamma: [
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(2,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))
+      MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0, 0), MyNumeric1Coef.new(0, 0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0, 0), MyNumeric1Coef.new(0, 0))), # pt(0, 0), // 1: -b
+      MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2, 0), MyNumeric1Coef.new(0, 0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0, 0), MyNumeric1Coef.new(0, 0))), # pt(a, 0.0), // 2:  + a
+      MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(3, 0), MyNumeric1Coef.new(0, 0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0, -1), MyNumeric1Coef.new(0, 0))), # pt(a + a_d2, 0 - a_sqrt3_d2), // 3: + ~a
+      MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(3, 0), MyNumeric1Coef.new(0, 1)), MyNumeric2Coef.new(MyNumeric1Coef.new(0, -1), MyNumeric1Coef.new(1, 0))), # pt(a + a_d2 + b_sqrt3_d2, 0 - a_sqrt3_d2 + b_d2), // 4: + ~b
+      MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(3, 0), MyNumeric1Coef.new(0, 1)), MyNumeric2Coef.new(MyNumeric1Coef.new(0, -1), MyNumeric1Coef.new(3, 0))), # pt(a + a_d2 + b_sqrt3_d2, 0 - a_sqrt3_d2 + b + b_d2), // 5: + b
+      MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(5, 0), MyNumeric1Coef.new(0, 1)), MyNumeric2Coef.new(MyNumeric1Coef.new(0, -1), MyNumeric1Coef.new(3, 0))), # # pt(a + a + a_d2 + b_sqrt3_d2, 0 - a_sqrt3_d2 + b + b_d2), // 6: + a
+      MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(6, 0), MyNumeric1Coef.new(0, 1)), MyNumeric2Coef.new(MyNumeric1Coef.new(0, 0), MyNumeric1Coef.new(3, 0))), # pt(a + a + a + b_sqrt3_d2, b + b_d2), // 7: + ~a
+      MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(6, 0), MyNumeric1Coef.new(0, 0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0, 0), MyNumeric1Coef.new(4, 0))), # pt(a + a + a, b + b),// 8: (3.0, 2.0), // 8: -~b
+      MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(6, 0), MyNumeric1Coef.new(0, -1)), MyNumeric2Coef.new(MyNumeric1Coef.new(0, 0), MyNumeric1Coef.new(3, 0))), # pt(a + a + a - b_sqrt3_d2, b + b - b_d2), // 9: -~b
+      MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(5, 0), MyNumeric1Coef.new(0, -1)), MyNumeric2Coef.new(MyNumeric1Coef.new(0, 1), MyNumeric1Coef.new(3, 0))), # pt(a + a + a_d2 - b_sqrt3_d2, a_sqrt3_d2 + b + b - b_d2), // 10: +~b
+      MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(3, 0), MyNumeric1Coef.new(0, -1)), MyNumeric2Coef.new(MyNumeric1Coef.new(0, 1), MyNumeric1Coef.new(3, 0))), # pt(a + a_d2 - b_sqrt3_d2, a_sqrt3_d2 + b + b - b_d2), // 11: -b
+      MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(1, 0), MyNumeric1Coef.new(0, -1)), MyNumeric2Coef.new(MyNumeric1Coef.new(0, 1), MyNumeric1Coef.new(3, 0))), #    pt(a_d2 - b_sqrt3_d2, a_sqrt3_d2 + b + b - b_d2), // 12: -a
+      MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0, 0), MyNumeric1Coef.new(0, -1)), MyNumeric2Coef.new(MyNumeric1Coef.new(0, 0), MyNumeric1Coef.new(3, 0))), #    pt(0 - b_sqrt3_d2, b + b - b_d2), // 13: -a
+      MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0, 0), MyNumeric1Coef.new(0, 0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0, 0), MyNumeric1Coef.new(2, 0))) #    pt(0.0, b) // +b
   ],
-  delta: [
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)))
-  ],
-  theta: [
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))
-  ],
-  lambda: [
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)))
-  ],
-  xi: [
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))
-  ],
-  pi: [
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)))
-  ],
-  sigma: [
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)))
-  ],
-  phi: [
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)))
-  ],
-  psi: [
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
-    MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)))
-  ]
+  # delta: [
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)))
+  # ],
+  # theta: [
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))
+  # ],
+  # lambda: [
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)))
+  # ],
+  # xi: [
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))
+  # ],
+  # pi: [
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)))
+  # ],
+  # sigma: [
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)))
+  # ],
+  # phi: [
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)))
+  # ],
+  # psi: [
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0))),
+  #   MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)))
+  # ]
 }
 
 # SpectreタイルのSVGを生成する関数

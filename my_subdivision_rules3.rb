@@ -46,106 +46,107 @@ end
 # タイルの置換ルールを定義し、再帰的に展開するアルゴリズム
 class Subdivision
 
+  # coef_array は論文に沿った [a0, a1, b0, b1] を想定
+  def self.translate(coef_array)
+    c = from_coef(coef_array)
+    MyComplex.from_c(c)
+  end
+
   RULES = {
-    gamma: [
-      { tile: :xi,    transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,1)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :pi,    transform: AffineTransform.new(1, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :psi,   transform: AffineTransform.new(2, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :phi,   transform: AffineTransform.new(3, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :sigma, transform: AffineTransform.new(4, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :xi,    transform: AffineTransform.new(5, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(2,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :theta, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,1)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :psi,   transform: AffineTransform.new(1, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,1)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :phi,   transform: AffineTransform.new(2, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,1)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) }
-    ],
-    delta: [
-      { tile: :xi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :delta, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :xi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :phi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :sigma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :pi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :phi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :gamma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :gamma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) }
-    ],
-    theta: [
-      { tile: :psi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :delta, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :pi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :phi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :sigma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :pi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :phi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :gamma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :gamma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) }
-    ],
-    lambda: [
-      { tile: :psi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :delta, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :xi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :phi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :sigma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :pi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :phi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :gamma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :gamma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) }
-    ],
-    xi: [
-      { tile: :psi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :delta, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :pi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :phi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :sigma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :psi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :phi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :gamma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :gamma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) }
-    ],
-    pi: [
-      { tile: :psi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :delta, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :xi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :phi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :sigma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :psi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :phi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :gamma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :gamma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) }
-    ],
-    sigma: [
-      { tile: :xi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :delta, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :xi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :phi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :sigma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :pi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :lambda, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :gamma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :gamma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) }
-    ],
-    phi: [
-      { tile: :psi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :delta, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :psi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :phi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :sigma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :pi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :phi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :gamma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :gamma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) }
-    ],
+   {
+  gamma: [
+    { tile: :xi,    transform: AffineTransform.new(0, translate([2, 0, 1, 0])) },
+    { tile: :pi,    transform: AffineTransform.new(1, translate([2, 0, 0, 0])) },
+    { tile: :psi,   transform: AffineTransform.new(2, translate([3, 0, 0, 0])) },
+    { tile: :phi,   transform: AffineTransform.new(3, translate([3, 0, -5, 0])) },
+    { tile: :sigma, transform: AffineTransform.new(4, translate([2, 0, -5, 0])) },
+    { tile: :xi,    transform: AffineTransform.new(5, translate([2, 0, 0, 0])) },
+    { tile: :theta, transform: AffineTransform.new(0, translate([3, 0, -1, 0])) },
+    { tile: :psi,   transform: AffineTransform.new(1, translate([2, 0, -5, 0])) },
+    { tile: :phi,   transform: AffineTransform.new(2, translate([2, 0, 2, 0])) }
+  ],
+  delta: [
+    { tile: :xi,    transform: AffineTransform.new(0, translate([4, 0, 1, 0])) },
+    { tile: :delta, transform: AffineTransform.new(1, translate([4, 0, 6, 0])) },
+    { tile: :phi,   transform: AffineTransform.new(2, translate([1, 0, 2, 0])) },
+    { tile: :sigma, transform: AffineTransform.new(3, translate([1, 0, -4, 0])) },
+    { tile: :pi,    transform: AffineTransform.new(4, translate([1, 0, -2, 0])) },
+    { tile: :phi,   transform: AffineTransform.new(5, translate([2, 0, 1, 0])) },
+    { tile: :gamma, transform: AffineTransform.new(0, translate([3, 0, -1, 0])) },
+    { tile: :gamma, transform: AffineTransform.new(1, translate([2, 0, 2, 0])) },
+    { tile: :xi,    transform: AffineTransform.new(2, translate([2, 0, -5, 0])) }
+  ]
+     theta: [
+    { tile: :psi,   transform: AffineTransform.new(0, translate([2, 0, 1, 0])) },
+    { tile: :delta, transform: AffineTransform.new(1, translate([2, 0, -5, 0])) },
+    { tile: :pi,    transform: AffineTransform.new(2, translate([3, 0, 0, 0])) },
+    { tile: :phi,   transform: AffineTransform.new(3, translate([3, 0, -1, 0])) },
+    { tile: :sigma, transform: AffineTransform.new(4, translate([2, 0, 2, 0])) },
+    { tile: :pi,    transform: AffineTransform.new(5, translate([2, 0, -5, 0])) },
+    { tile: :phi,   transform: AffineTransform.new(0, translate([2, 0, 1, 0])) },
+    { tile: :gamma, transform: AffineTransform.new(1, translate([3, 0, -1, 0])) },
+    { tile: :gamma, transform: AffineTransform.new(2, translate([2, 0, 2, 0])) }
+  ],
+
+  lambda: [
+    { tile: :psi,   transform: AffineTransform.new(0, translate([2, 0, 1, 0])) },
+    { tile: :delta, transform: AffineTransform.new(1, translate([2, 0, -5, 0])) },
+    { tile: :xi,    transform: AffineTransform.new(2, translate([3, 0, 0, 0])) },
+    { tile: :phi,   transform: AffineTransform.new(3, translate([3, 0, -1, 0])) },
+    { tile: :sigma, transform: AffineTransform.new(4, translate([2, 0, 2, 0])) },
+    { tile: :pi,    transform: AffineTransform.new(5, translate([2, 0, -5, 0])) },
+    { tile: :phi,   transform: AffineTransform.new(0, translate([2, 0, 1, 0])) },
+    { tile: :gamma, transform: AffineTransform.new(1, translate([3, 0, -1, 0])) },
+    { tile: :gamma, transform: AffineTransform.new(2, translate([2, 0, 2, 0])) }
+  ],
+
+  xi: [
+    { tile: :psi,   transform: AffineTransform.new(0, translate([2, 0, 1, 0])) },
+    { tile: :delta, transform: AffineTransform.new(1, translate([2, 0, -5, 0])) },
+    { tile: :pi,    transform: AffineTransform.new(2, translate([3, 0, 0, 0])) },
+    { tile: :phi,   transform: AffineTransform.new(3, translate([3, 0, -1, 0])) },
+    { tile: :sigma, transform: AffineTransform.new(4, translate([2, 0, 2, 0])) },
+    { tile: :psi,   transform: AffineTransform.new(5, translate([2, 0, -5, 0])) },
+    { tile: :phi,   transform: AffineTransform.new(0, translate([2, 0, 1, 0])) },
+    { tile: :gamma, transform: AffineTransform.new(1, translate([3, 0, -1, 0])) },
+    { tile: :gamma, transform: AffineTransform.new(2, translate([2, 0, 2, 0])) }
+  ],
+  pi: [
+    { tile: :psi,   transform: AffineTransform.new(0, translate([2, 0, 1, 0])) },
+    { tile: :delta, transform: AffineTransform.new(1, translate([2, 0, -5, 0])) },
+    { tile: :xi,    transform: AffineTransform.new(2, translate([3, 0, 0, 0])) },
+    { tile: :phi,   transform: AffineTransform.new(3, translate([3, 0, -1, 0])) },
+    { tile: :sigma, transform: AffineTransform.new(4, translate([2, 0, 2, 0])) },
+    { tile: :psi,   transform: AffineTransform.new(5, translate([2, 0, -5, 0])) },
+    { tile: :phi,   transform: AffineTransform.new(0, translate([2, 0, 1, 0])) },
+    { tile: :gamma, transform: AffineTransform.new(1, translate([3, 0, -1, 0])) },
+    { tile: :gamma, transform: AffineTransform.new(2, translate([2, 0, 2, 0])) }
+  ],
+
+  sigma: [
+    { tile: :xi,    transform: AffineTransform.new(0, translate([2, 0, 1, 0])) },
+    { tile: :delta, transform: AffineTransform.new(1, translate([2, 0, -5, 0])) },
+    { tile: :xi,    transform: AffineTransform.new(2, translate([3, 0, 0, 0])) },
+    { tile: :phi,   transform: AffineTransform.new(3, translate([3, 0, -1, 0])) },
+    { tile: :sigma, transform: AffineTransform.new(4, translate([2, 0, 2, 0])) },
+    { tile: :pi,    transform: AffineTransform.new(5, translate([2, 0, -5, 0])) },
+    { tile: :phi,   transform: AffineTransform.new(0, translate([2, 0, 1, 0])) },
+    { tile: :gamma, transform: AffineTransform.new(1, translate([3, 0, -1, 0])) },
+    { tile: :gamma, transform: AffineTransform.new(2, translate([2, 0, 2, 0])) }
+  ],
+
     psi: [
-      { tile: :psi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :delta, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :psi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :phi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :sigma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :psi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :phi, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :gamma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) },
-      { tile: :gamma, transform: AffineTransform.new(0, MyComplex.new(MyNumeric2Coef.new(MyNumeric1Coef.new(2,0), MyNumeric1Coef.new(0,0)), MyNumeric2Coef.new(MyNumeric1Coef.new(0,0), MyNumeric1Coef.new(0,0)))) }
-    ]
+    { tile: :psi,   transform: AffineTransform.new(0, translate([2, 0, 1, 0])) },
+    { tile: :delta, transform: AffineTransform.new(1, translate([2, 0, -5, 0])) },
+    { tile: :psi,   transform: AffineTransform.new(2, translate([3, 0, 0, 0])) },
+    { tile: :phi,   transform: AffineTransform.new(3, translate([3, 0, -1, 0])) },
+    { tile: :sigma, transform: AffineTransform.new(4, translate([2, 0, 2, 0])) },
+    { tile: :psi,   transform: AffineTransform.new(5, translate([2, 0, -5, 0])) },
+    { tile: :phi,   transform: AffineTransform.new(0, translate([2, 0, 1, 0])) },
+    { tile: :gamma, transform: AffineTransform.new(1, translate([3, 0, -1, 0])) },
+    { tile: :gamma, transform: AffineTransform.new(2, translate([2, 0, 2, 0])) }
+  ]
+
   }
 
   def self.subdivide(tile, transform, depth, &block)
