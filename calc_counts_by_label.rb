@@ -204,9 +204,9 @@ VEC_SIZE = labels.length
 # The initial state vectors v(0), v(1), and v(2) serve as base cases.
 # The values are derived from the substitution process for the first few steps.
 v = [
-  [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0], # v(0) as 1 tile of spectre(labeled Delta).
+  [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0], # v(0) as 1 tile of spectre(only Delta).
   [1, 1, 1, 1, 0, 0, 1, 2, 2, 0, 1, 1], # v(1) as 9 tile of spectres.
-  [8, 8, 8, 8, 1, 1, 7, 6, 14, 10, 6, 0] # v(2) as 71 tile of spectres for v(0)==v(1)==0.
+  [8, 8, 8, 8, 1, 1, 7, 6, 14, 10, 6, 0] # v(2) as 71 tile of spectres for v(0)==v(1)==0 of Psi,Pi,Xi.
 ]
 
 # --- Matrix Calculation Loop (n >= 3) ---
@@ -222,7 +222,7 @@ v = [
 end
 
 # --- Display Matrix Results ---
-puts "\n--- Recurrence Results by Iteration ---"
+puts "\n--- Recurrence Results by Iteration ---" if DEBUG_TRACE_LABEL
 display_labels = labels.reject { |label| label.start_with?('_') }
 v.each_with_index do |vec, i|
   filtered_values = display_labels.zip(vec[0...display_labels.size]).reject { |_, value| value.zero? }
