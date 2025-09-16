@@ -269,3 +269,16 @@ end
 # Phi = [0, 2, 14, 110, 866, 6818, 53678, 422606, 3327170, 26194754, 206230862, 1623652142, 12782986274, 100640238050, 792338918126]
 # Psi = [0, 0, 10, 86, 684, 5392, 42458, 334278, 2631772, 20719904, 163127466, 1284299830, 10111271180, 79605869616, 626735685754]
 # _Pi_Xi = [0, 1, 6, 47, 370, 2913, 22934, 180559, 1421538, 11191745, 88112422, 693707631, 5461548626, 42998681377, 338527902390]
+
+# Gamma1(n) = Gamma2(n) = Delta(n) = Sigma(n) = 8*Gamma1(n-1) - Gamma1(n-2) for n>=2. See OEIS A001090.
+# Theta(n) = Lambda(n) = 8*Theta(n-1) - Theta(n-2) for n>2. See OEIS A001090 with offset 2.
+# Pi(n) = 8*_Pi_Xi(n-1) - _Pi_Xi(n-2) + _even(n-1) for n>2.
+# Xi(n) = 8*_Pi_Xi(n-1) - _Pi_Xi(n-2) + _even(n-2) for n>2.
+# Phi(n) = 8*Phi(n-1) - Phi(n-2) for n>=2. See OEIS A001090 with offset 2.
+# Psi(n) = 8*Psi(n-1) - Psi(n-2) + 6 for n>2 with a(1)=0, a(2)=10.
+#          The constant term `6` is modeled as 6 * _even(n-1) + 6 * _even(n-2), which equals 6 for n > 2.
+# Auxiliary sequence _Pi_Xi follows the base recurrence. See OEIS A341927.
+# Auxiliary sequence _even generates [0, 1, 0, 1, ...], satisfying a(n) = a(n-2).
+# Auxiliary sequence _total(n) = [1, 9, 71, 559, 4401, 34649, 272791, 2147679, 16908641, 133121449, 1048062951, 8251382159, 64962994321, 511452572409, 4026657584951]
+#                               a(n)=(a(1)-1)*a(n-1)-a(n-2) for n>2 with a(1)=9, a(2)=71.
+#                               See OEIS A057080  https://oeis.org/A057080
