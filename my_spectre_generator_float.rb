@@ -26,11 +26,11 @@ generator = SpectreTilingGenerator.new(strategy, N_ITERATIONS, EDGE_A, EDGE_B)
 
 # --- ★★★ カラーリング戦略の選択 ★★★ ---
 # spectre-tiles_float.rb相当の「角度による色付け」戦略を選択
-color_strategy = ByAngleStrategy.new(strategy)
+# color_strategy = ByAngleStrategy.new(strategy)
 # 親と子のラベルの組み合わせで色をブレンドする
 # color_strategy = ByParentChildBitwiseStrategy.new()
 # color_strategy = ClusterHueShiftStrategy.new()
-# color_strategy = FourColorStrategy.new
+color_strategy = FourColorStrategy.new
 # color_strategy = MonoChromeStrategy.new
 
 # --- 2. タイリング生成の実行 ---
@@ -110,7 +110,7 @@ File.open(svg_filename, 'w') do |file|
     color = color_array.join(',')
     stroke_color = (label == 'Gamma1' || label == 'Gamma2') ? 'black' : 'gray'
     stroke_width = (label == 'Gamma1' || label == 'Gamma2') ? '0.6' : '0.1'
-    fill_opacity = ((label == 'Gamma1' || label == 'Gamma2')) ? '80%' : '57%'
+    fill_opacity = ((color_strategy.name && label == 'Gamma2') && (label == 'Gamma1' || label == 'Gamma2')) ? '80%' : '57%'
     # file.puts '<circle cx="' + trsf[2].real.to_f.to_s + '" cy="' + trsf[2].imag.to_f.to_s +
     #             '" r="4" fill="' + (label == 'Gamma2' ? 'rgb(128,8,8)' : 'rgb(66,66,66)') + '" fill-opacity="90%" />'
     if color_strategy.name == 'MonoChrome'
