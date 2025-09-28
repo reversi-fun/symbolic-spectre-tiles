@@ -13,8 +13,8 @@ require './my_spectre_generator_generic'
 N_ITERATIONS = 4
 # EDGE_A = 10.0
 # EDGE_B = 10.0
-EDGE_A = 20.0 / (Math.sqrt(3) + 2.0)
-EDGE_B = 20.0 - EDGE_A
+EDGE_A = 10.0 # 20.0 / (Math.sqrt(3) + 2.0)
+EDGE_B = 10.0 # 20.0 - EDGE_A
 
 # --- 1. 戦略とジェネレータの初期化 ---
 start_time = Time.now
@@ -30,8 +30,8 @@ generator = SpectreTilingGenerator.new(strategy, N_ITERATIONS, EDGE_A, EDGE_B)
 # 親と子のラベルの組み合わせで色をブレンドする
 # color_strategy = ByParentChildBitwiseStrategy.new()
 # color_strategy = ClusterHueShiftStrategy.new()
-color_strategy = FourColorStrategy.new
-# color_strategy = MonoChromeStrategy.new
+# color_strategy = FourColorStrategy.new
+color_strategy = MonoChromeStrategy.new
 
 # --- 2. タイリング生成の実行 ---
 puts "* タイリング生成を開始します (N=#{N_ITERATIONS})"
@@ -85,9 +85,10 @@ File.open(svg_filename, 'w') do |file|
     # file.puts '<pattern id="hatch50" patternUnits="userSpaceOnUse" width="4" height="4">'
     # file.puts '  <path d="M0,0 l4,4" stroke="gray" stroke-width="1" />'
     # file.puts '</pattern>'
-    file.puts '<pattern id="checker50" patternUnits="userSpaceOnUse" width="8" height="8">'
-    file.puts '  <rect x="0" y="0" width="4" height="4" fill="gray" />'
-    file.puts '  <rect x="4" y="4" width="4" height="4" fill="gray" />'
+    file.puts '<pattern id="triangle60" patternUnits="userSpaceOnUse" width="1.2" height="2">'
+    file.puts '  <polygon points="0.6,1 1.2,0 0,0" fill="black"/>'
+    file.puts '  <polygon points="0.6,1 0,1 0,2" fill="black"/>'
+    file.puts '  <polygon points="0.6,1 1.2,1 1.2,2" fill="black"/>'
     file.puts '</pattern>'
   end
   file.puts '</defs>'
@@ -115,9 +116,9 @@ File.open(svg_filename, 'w') do |file|
     #             '" r="4" fill="' + (label == 'Gamma2' ? 'rgb(128,8,8)' : 'rgb(66,66,66)') + '" fill-opacity="90%" />'
     if color_strategy.name == 'MonoChrome'
       if label == 'Gamma1'  # ハッチング模様（SVGパターン参照）＋明灰色
-        file.puts %(<use xlink:href="#d0" x="0" y="0"  transform="translate(#{pos[0]},#{pos[1]}) rotate(#{angle}) scale(1,#{scale_y})" fill="url(#checker50)" stroke="#{stroke_color}" stroke-width="#{stroke_width}" />)
+        file.puts %(<use xlink:href="#d0" x="0" y="0"  transform="translate(#{pos[0]},#{pos[1]}) rotate(#{angle}) scale(1,#{scale_y})" fill="url(#triangle60)" fill-opacity="#{fill_opacity}" stroke="#{stroke_color}" stroke-width="#{stroke_width}" />)
       elsif label == 'Gamma2' # 黒で塗りつぶし
-        file.puts %(<use xlink:href="#d1" x="0" y="0"  transform="translate(#{pos[0]},#{pos[1]}) rotate(#{angle}) scale(1,#{scale_y})" fill=rgb(#{color})" stroke="#{stroke_color}" stroke-width="#{stroke_width}" />)
+        file.puts %(<use xlink:href="#d1" x="0" y="0"  transform="translate(#{pos[0]},#{pos[1]}) rotate(#{angle}) scale(1,#{scale_y})" fill="rgb(#{color})" fill-opacity="#{fill_opacity}" stroke="#{stroke_color}" stroke-width="#{stroke_width}" />)
       else  # その他は（塗りつぶしなし）
         file.puts %(<use xlink:href="#d0" x="0" y="0"  transform="translate(#{pos[0]},#{pos[1]}) rotate(#{angle}) scale(1,#{scale_y})" fill="rgb(#{color})" fill-opacity="#{fill_opacity}" stroke="#{stroke_color}" stroke-width="#{stroke_width}" />)
       end
@@ -125,7 +126,7 @@ File.open(svg_filename, 'w') do |file|
      # file.puts %(<use xlink:href="#{label != 'Gamma2' ? '#d0' : '#d1'}" x="0" y="0"  transform="translate(#{pos[0]},#{pos[1]}) rotate(#{angle}) scale(1,#{scale_y})" fill="rgb(#{color})" fill-opacity="47%" stroke="black" stroke-weight="0.1" />)
         file.puts %(<use xlink:href="#{label != 'Gamma2' ? '#d0' : '#d1'}" x="0" y="0"  transform="translate(#{pos[0]},#{pos[1]}) rotate(#{angle}) scale(1,#{scale_y})" fill="rgb(#{color})" fill-opacity="#{fill_opacity}" stroke="#{stroke_color}" stroke-width="#{stroke_width}" />)
     end
-    file.puts %(<text x="#{EDGE_A}" y="#{EDGE_B * 0.5}" transform="translate(#{pos[0]},#{pos[1]}) rotate(#{angle - 15}) " font-size="8">#{label}</text>)
+    # file.puts %(<text x="#{EDGE_A}" y="#{EDGE_B * 0.5}" transform="translate(#{pos[0]},#{pos[1]}) rotate(#{angle - 15}) " font-size="8">#{label}</text>)
   end
   file.puts '</svg>'
 end
