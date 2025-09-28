@@ -85,10 +85,10 @@ File.open(svg_filename, 'w') do |file|
     # file.puts '<pattern id="hatch50" patternUnits="userSpaceOnUse" width="4" height="4">'
     # file.puts '  <path d="M0,0 l4,4" stroke="gray" stroke-width="1" />'
     # file.puts '</pattern>'
-    file.puts '<pattern id="triangle60" patternUnits="userSpaceOnUse" width="1.2" height="2">'
-    file.puts '  <polygon points="0.6,1 1.2,0 0,0" fill="black"/>'
-    file.puts '  <polygon points="0.6,1 0,1 0,2" fill="black"/>'
-    file.puts '  <polygon points="0.6,1 1.2,1 1.2,2" fill="black"/>'
+    file.puts '<pattern id="triangle60" patternUnits="userSpaceOnUse" width="4" height="7">' # さらに強い錯視を狙うなら、パターンのサイズを少し大きくして、視線が動く余地を作る
+    file.puts '  <polygon points="2.0,3.2 3.9,0 0.1,0" fill="black"/>' # 中央の三角形の位置を少し下げて、接してないのに「つながって見える」錯視を強調。
+    file.puts '  <polygon points="1.6,3.8 0,3.6 0,7" fill="black"/>' # 左右の三角形の角度や位置を微調整して、中央に向かう「仮想の線」が浮かび上がるように。
+    file.puts '  <polygon points="2.4,3.8 4,3.6 4,7" fill="black"/>'
     file.puts '</pattern>'
   end
   file.puts '</defs>'
