@@ -69,9 +69,8 @@ class SpectreTilingGenerator
   attr_reader :root_tile
 
   # 初期化時に、使用する計算戦略(strategy)を受け取ります
-  def initialize(strategy, iterations, edge_a, edge_b)
+  def initialize(strategy, edge_a, edge_b)
     @strategy = strategy
-    @iterations = iterations
     @edge_a = edge_a
     @edge_b = edge_b
 
@@ -79,15 +78,33 @@ class SpectreTilingGenerator
     @spectre_points = @strategy.define_spectre_points(@edge_a, @edge_b)
     @spectre_quad = [3, 5, 7, 11].map { |idx| @spectre_points[idx].dup }
     @identity = @strategy.identity_transform
-    @reflection = @strategy.reflection_transform
+    # @reflection = @strategy.reflection_transform
     @root_tile = nil
   end
 
   # タイリング生成のメインプロセス
-  def generate
+  def generate(iterations)
     tiles = build_spectre_base
-    @iterations.times do
+    # tiles.each do |label, meta_tile|
+    #     p ["* base tile",0, meta_tile.id, meta_tile.class.name, meta_tile.label, meta_tile.quad.map{|e| e.to_s}]
+    # end
+
+    puts "a_quad_coef = []"
+    puts "a_transformations_coef = []"
+    puts "a_super_quad_coef = []"
+
+    iterations.times do |i|
       tiles = build_supertiles(tiles)
+      # tiles.each do |label, meta_tile|
+      #   p ["****tile",i+1, meta_tile.id, meta_tile.class.name, meta_tile.label, meta_tile.quad.map{|e| e.to_s}]
+      #   p ["****sub_tiles\t"]
+      #   meta_tile.tiles.zip(meta_tile.transformations).each do |tile, trsf|
+      #      p [i+1,tile.id, tile.class.name, tile.label, [" transform angle & moveTo", @strategy.get_angle_from_transform(trsf)[0], trsf[2].to_s],
+      #         "4 quad Points",tile.quad.map{|e| (e).to_s},
+      #         "transformed 4 quad Points", tile.quad.map{|e| @strategy.transform_point(trsf,e).to_s}
+      #       ]
+      #   end
+      # end
     end
     @root_tile = tiles['Delta'] # 最終的なルートタイルを設定
     return self
@@ -101,13 +118,11 @@ class SpectreTilingGenerator
     TILE_NAMES.each do |label|
       tiles[label] = if label == 'Gamma'
         # GammaタイルはGamma1とGamma2から構成されるMetaTileです
-        gamma2_transform = @strategy.compose_transforms(
-          [@identity[0], @identity[1], @spectre_points[8]], # 移動
-          @strategy.rotation_transform(30) # 回転
-        )
+        gamma2_transform = @strategy.create_transform(30, @spectre_points[8]) # 回転30度
+         # @strategy.compose_transforms([@identity [0], @identity [1], @spectre_points[8]], @strategy.rotation_transform(30) ) # 回転
         MetaTile.new('Gamma',
           [Tile.new('Gamma1', @spectre_quad), Tile.new('Gamma2', @spectre_quad)],
-          [@identity.dup, gamma2_transform],
+          [@identity, gamma2_transform],
           @spectre_quad,
           @strategy)
       else
@@ -135,13 +150,22 @@ class SpectreTilingGenerator
       end
 
       move_vec = @strategy.transform_point(transformations.last, quad[from]) - transformed_quad[to]
-      translation = [@identity[0].dup, @identity[1].dup, move_vec]
+      translation = @strategy.create_transform(total_angle, move_vec) # [@identity [0], @identity [1], move_vec]
 
-      transformations << @strategy.compose_transforms(translation, rotation)
+      transformations << translation # @strategy.compose_transforms(translation, rotation)
+
+      # coef = @strategy.to_internal_coefficients(transformations.last[2])
+      # delta = @strategy.to_internal_coefficients(transformations.last[2] - quad[from])
+      # angle_deg = @strategy.get_angle_from_transform(transformations.last)[0]
+      # puts "# a_trsf = [#{angle_deg}, #{coef.inspect}]"
+      # puts "# a_translation - quad[#{from}] = #{delta.inspect}"
     end
 
+    puts "# a_transformations = #{transformations.map { |e| [@strategy.get_angle_from_transform(e)[0], @strategy.to_internal_coefficients(e)] }.inspect}"
     # Y軸反転を適用します
-    transformations.map! { |trsf| @strategy.compose_transforms(@reflection, trsf) }
+    # transformations.map! { |trsf| @strategy.compose_transforms(@reflection, trsf) }
+    transformations.map! { |trsf| @strategy.reflect_transform(trsf) }
+
 
     # 新しいスーパータイルの頂点座標を計算します
     super_quad = [
@@ -150,6 +174,10 @@ class SpectreTilingGenerator
       @strategy.transform_point(transformations[3], quad[2]),
       @strategy.transform_point(transformations[0], quad[1])
     ]
+
+    puts "a_quad_coef << #{quad.map { |e| @strategy.to_internal_coefficients(e) }.inspect}"
+    puts "a_transformations_coef << #{transformations.map { |e| [@strategy.get_angle_from_transform(e)[0], @strategy.to_internal_coefficients(e)] }.inspect}"
+    puts "a_super_quad_coef << #{super_quad.map { |e| @strategy.to_internal_coefficients(e) }.inspect}"
 
     # 置換規則に基づいて新しいMetaTileを生成します
     tiles = {}

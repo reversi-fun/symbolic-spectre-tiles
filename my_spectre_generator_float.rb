@@ -22,7 +22,7 @@ start_time = Time.now
 # 使用するジオメトリ戦略をインスタンス化
 strategy = FloatStrategy.new
 # ジェネレータに戦略を渡して初期化
-generator = SpectreTilingGenerator.new(strategy, N_ITERATIONS, EDGE_A, EDGE_B)
+generator = SpectreTilingGenerator.new(strategy, EDGE_A, EDGE_B)
 
 # --- ★★★ カラーリング戦略の選択 ★★★ ---
 # spectre-tiles_float.rb相当の「角度による色付け」戦略を選択
@@ -35,12 +35,13 @@ color_strategy = MonoChromeStrategy.new
 
 # --- 2. タイリング生成の実行 ---
 puts "* タイリング生成を開始します (N=#{N_ITERATIONS})"
-generator.generate
+generator.generate(N_ITERATIONS)
 root_tile = generator.root_tile
 puts "* タイル生成完了: #{Time.now - start_time}秒"
 
 # --- 3. 描画領域とタイル数の計算 (第1パス) ---
-puts "* 描画領域とタイル数を計算中 (第1パス)..."
+# メモリを節約するため、タイル情報を配列に保存せず、都度計算します。
+# このパスでは、全体の描画範囲と総タイル数を把握しますputs "* 描画領域とタイル数を計算中 (第1パス)..."
 min_x, min_y = Float::INFINITY, Float::INFINITY
 max_x, max_y = -Float::INFINITY, -Float::INFINITY
 num_tiles = 0
@@ -67,15 +68,15 @@ svg_time = Time.now
 
 # 描画前にカラーリング戦略の状態をリセット
 color_strategy.reset
+spectre_points = strategy.define_spectre_points(EDGE_A, EDGE_B)
+mystic_points = strategy.define_spectre_points(EDGE_B, EDGE_A) # strategy.define_mystic_points(spectre_points)
 
 File.open(svg_filename, 'w') do |file|
-  view_width = max_x - min_x
-  view_height = max_y - min_y
-  file.puts %(<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="#{view_width.to_i}" height="#{view_height.to_i}" viewBox="#{min_x.to_i} #{min_y.to_i} #{view_width.to_i} #{view_height.to_i}">)
+  view_width = max_x - min_x - 1
+  view_height = max_y - min_y - 1
+  file.puts %(<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"\n width="#{view_width.to_i}" height="#{view_height.to_i}" viewBox="#{min_x.to_i} #{min_y.to_i} #{view_width.to_i} #{view_height.to_i}">)
 
   # 図形のパス定義
-  spectre_points = strategy.define_spectre_points(EDGE_A, EDGE_B)
-  mystic_points = strategy.define_spectre_points(EDGE_B, EDGE_A)
   path_d0 = spectre_points.map { |p| strategy.point_to_svg_coords(p).join(',') }.join(' L')
   path_d1 = mystic_points.map { |p| strategy.point_to_svg_coords(p).join(',') }.join(' L')
   file.puts '<defs>'
@@ -102,11 +103,14 @@ File.open(svg_filename, 'w') do |file|
 
   # 各タイルの描画
   scale_y = N_ITERATIONS.even? ? 1 : -1
-  root_tile.for_each_tile(strategy.identity_transform, []) do |transform, label, parent_info|
+  tile_index = 0
+  root_tile.for_each_tile(strategy.identity_transform) do |transform, label, parent_info|
     trsf = transform
+
     angle, = strategy.get_angle_from_transform(trsf)
     pos = strategy.point_to_svg_coords(trsf[2])
 
+    # 戦略オブジェクトから色を取得
     color_array = color_strategy.get_color(transform: trsf, label: label, parent_info: parent_info)
     color = color_array.join(',')
     stroke_color = (label == 'Gamma1' || label == 'Gamma2') ? 'black' : 'gray'
@@ -126,18 +130,19 @@ File.open(svg_filename, 'w') do |file|
      # file.puts %(<use xlink:href="#{label != 'Gamma2' ? '#d0' : '#d1'}" x="0" y="0"  transform="translate(#{pos[0]},#{pos[1]}) rotate(#{angle}) scale(1,#{scale_y})" fill="rgb(#{color})" fill-opacity="47%" stroke="black" stroke-weight="0.1" />)
         file.puts %(<use xlink:href="#{label != 'Gamma2' ? '#d0' : '#d1'}" x="0" y="0"  transform="translate(#{pos[0]},#{pos[1]}) rotate(#{angle}) scale(1,#{scale_y})" fill="rgb(#{color})" fill-opacity="#{fill_opacity}" stroke="#{stroke_color}" stroke-width="#{stroke_width}" />)
     end
-    # file.puts %(<text x="#{EDGE_A}" y="#{EDGE_B * 0.5}" transform="translate(#{pos[0]},#{pos[1]}) rotate(#{angle - 15}) " font-size="8">#{label}</text>)
+    # file.puts %(<text x="#{EDGE_A}" y="#{EDGE_B * 0.5}" transform="translate(#{pos[0]},#{pos[1]}) rotate(#{angle - 15}) " font-size="8">#{tile_index + 1}</text>)
+    tile_index += 1
   end
   file.puts '</svg>'
 end
 puts "* SVG描画完了: #{Time.now - svg_time}秒"
 
-puts "* coefファイルを出力中 "
-coef_time = Time.now
-root_tile.for_each_tile(strategy.identity_transform, [], root_tile) do |transform, label, parent_info, parent_tile, cur_tile|
-    angle,scale_y = strategy.get_angle_from_transform(transform)
-    p [cur_tile.id, label,angle,scale_y, transform[2], parent_tile.id, parent_tile.label, parent_info]
-end
-puts "* coef出力完了: #{Time.now - coef_time}秒"
+# puts "* coefファイルを出力中 "
+# coef_time = Time.now
+# root_tile.for_each_tile(strategy.identity_transform, [], root_tile) do |transform, label, parent_info, parent_tile, cur_tile|
+#     angle,scale_y = strategy.get_angle_from_transform(transform)
+#     p [cur_tile.id, label,angle,scale_y, transform[2], parent_tile.id, parent_tile.label, parent_info]
+# end
+# puts "* coef出力完了: #{Time.now - coef_time}秒"
 
 puts "* 全処理時間: #{Time.now - start_time}秒"

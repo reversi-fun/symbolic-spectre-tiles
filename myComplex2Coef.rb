@@ -239,10 +239,25 @@ class MyNumeric2Coef < MyNumericBase
     [@uv.r.to_i, @uv.s.to_i, @xy.r.to_i, @xy.s.to_i]
   end
 
+  def dominant_axis
+    if self.zero?
+      :zero_spectre_mystic
+    elsif @uv.s.zero? && @xy.r.zero? # a_magnitude >= b_magnitude
+      :spectre
+    elsif @uv.r.zero? && @xy.s.zero? # a_magnitude < b_magnitude
+      :mystic
+    else
+      raise ArgumentError.new("invalid dominant axis: [#{to_vec().join(', ')}]")
+      :undetermined
+    end
+  end
+
   def check_consistency
-    result = ((to_f - eval(to_s.gsub('A', "#{@@A}").gsub('B', "#{@@B}").gsub('√3', "#{Math.sqrt(3)}")).abs) < CONST_EPSILON)
+    self_dominant_axis = dominant_axis()
+    result = (self_dominant_axis == :spectre || self_dominant_axis == :mystic || self_dominant_axis == :zero_spectre_mystic) &&
+       ((to_f - eval(to_s.gsub('A', "#{@@A}").gsub('B', "#{@@B}").gsub('√3', "#{Math.sqrt(3)}")).abs) < CONST_EPSILON)
     unless result
-      p ['check_consistency failed', to_f, eval(to_s.gsub('A', "#{@@A}").gsub('B', "#{@@B}").gsub('√3', "#{Math.sqrt(3)}"))]
+      p ['check_consistency failed', to_f, self_dominant_axis,eval(to_s.gsub('A', "#{@@A}").gsub('B', "#{@@B}").gsub('√3', "#{Math.sqrt(3)}"))]
     end
     result
   end
@@ -257,6 +272,7 @@ end
 
 def to_vec(v)
   vec = v.real.to_vec + v.imag.to_vec
+  return  [vec, '8d']
   if vec[1].zero? && vec[2].zero? && vec[4].zero? && vec[7].zero?
     [vec[0], vec[3], vec[5], vec[6]]
   else
@@ -269,44 +285,76 @@ def to_coef(w)
   return ['Invalid input to to_coef', w] unless w.is_a?(Complex) &&
          w.real.is_a?(MyNumeric2Coef) && w.imag.is_a?(MyNumeric2Coef)
 
-  real, imag = w.real, w.imag
+  axis_real = w.real.dominant_axis
+  axis_imag = w.imag.dominant_axis
+  axis_imag = axis_imag == :spectre ? :mystic : axis_imag == :mystic ? :spectre : axis_imag
 
-  # Check if the required components are zero
-  return ['inValid coef', [
-    real.uv.r, real.uv.s, real.xy.r, real.xy.s,
-    imag.uv.r, imag.uv.s, imag.xy.r, imag.xy.s
-  ]] unless real.uv.s.zero? && real.xy.r.zero? &&
-               imag.uv.r.zero? && imag.xy.s.zero?
-
-  # Calculate coefficients only if all conditions are met
-  [
-    ((real.uv.r - imag.uv.s) / 2.0).to_i, # First coefficient of Edge_a
-    imag.uv.s.to_i,                        # Second coefficient of Edge_a
-    ((imag.xy.r - real.xy.s) / 2.0).to_i, # First coefficient of Edge_b
-    real.xy.s.to_i                         # Second coefficient of Edge_b
-  ]
+  if w.zero?
+    [0, 0, 0, 0, :zero_spectre_mystic]
+  elsif (w.real.uv.s.zero? && w.real.xy.r.zero? && w.imag.uv.r.zero? && w.imag.xy.s.zero?)
+    a0 = ((w.real.uv.r - w.imag.uv.s) / 2.0).to_i
+    a1 = w.imag.uv.s.to_i
+    b0 = ((w.imag.xy.r - w.real.xy.s) / 2.0).to_i
+    b1 = w.real.xy.s.to_i
+    a_magnitude = a0.abs + a1.abs
+    b_magnitude = b0.abs + b1.abs
+    axis = (a_magnitude >= b_magnitude) ? :spectre : :mystic
+    p ["invalid dominant axis: #{ [a0, a1, b0, b1, axis_real, axis_imag, axis, to_vec(w)]}"] if  (axis_real != :zero_spectre_mystic) && (axis_imag != :zero_spectre_mystic) && (axis_real != axis_imag) # || (axis != axis_real) ||
+    [a0, a1, b0, b1, :spectre]
+  elsif (w.real.uv.r.zero? && w.real.xy.s.zero? && w.imag.uv.s.zero? && w.imag.xy.r.zero?)
+    b0 = ((w.imag.uv.r - w.real.uv.s) / 2.0).to_i
+    b1 = w.real.uv.s.to_i
+    a0 = ((w.real.xy.r - w.imag.xy.s) / 2.0).to_i
+    a1 = w.imag.xy.s.to_i
+    a_magnitude = a0.abs + a1.abs
+    b_magnitude = b0.abs + b1.abs
+    axis = (a_magnitude >= b_magnitude) ? :spectre : :mystic
+    p ["invalid dominant axis: #{ [a0, a1, b0, b1, axis_real, axis]}"] if (axis_real != :zero_spectre_mystic) && (axis_imag != :zero_spectre_mystic) && (axis_real != axis_imag) # || (axis != axis_real) ||
+    [a0, a1, b0, b1, :mystic]
+  else
+    [
+      w.real.uv.r, w.real.uv.s, w.real.xy.r, w.real.xy.s,
+      w.imag.uv.r, w.imag.uv.s, w.imag.xy.r, w.imag.xy.s,
+      :unknown
+    ]
+  end
 end
 
 def from_coef(coef_array)
-  # Validate input is array of 4 numbers
+  # 入力チェック
   return ['Invalid input to from_coef', coef_array] unless coef_array.is_a?(Array) &&
-         coef_array.length == 4 && coef_array.all? { |x| x.is_a?(Numeric) }
+         (coef_array.length == 4 || coef_array.length == 5) &&
+         coef_array[0..3].all? { |x| x.is_a?(Numeric) }
 
-  a0, a1, b0, b1 = coef_array # 係数を分解
+  a0, a1, b0, b1 = coef_array[0..3]
 
-  # 実数部の計算
-  real_r = 2 * a0 + a1
-  real_s = a1
-  real_x = 0
-  real_y = b1
+  if coef_array.length == 4 || coef_array[4] == :spectre # Spectre系
+    real_r = 2 * a0 + a1
+    real_s = 0
+    real_x = 0
+    real_y = b1
 
-  # 虚数部の計算
-  imag_r = 0
-  imag_s = a1
-  imag_x = 2 * b0 + b1
-  imag_y = 0
+    imag_r = 0
+    imag_s = a1
+    imag_x = 2 * b0 + b1
+    imag_y = 0
+  elsif coef_array[4] == :mystic
+    # Mystic系：AとBの役割を入れ替える
+    real_r = 2 * b0 + b1
+    real_s = 0
+    real_x = 0
+    real_y = a1
 
-  # 実数部と虚数部を組み合わせて複素数を作成
-  Complex(MyNumeric2Coef.new(MyNumeric1Coef.new(real_r, real_s), MyNumeric1Coef.new(real_x, real_y)),
-          MyNumeric2Coef.new(MyNumeric1Coef.new(imag_r, imag_s), MyNumeric1Coef.new(imag_x, imag_y)))
+    imag_r = 0
+    imag_s = b1
+    imag_x = 2 * a0 + a1
+    imag_y = 0
+  else
+    return ['Invalid input to from_coef', coef_array]
+  end
+
+  Complex(
+    MyNumeric2Coef.new(MyNumeric1Coef.new(real_r, real_s), MyNumeric1Coef.new(real_x, real_y)),
+    MyNumeric2Coef.new(MyNumeric1Coef.new(imag_r, imag_s), MyNumeric1Coef.new(imag_x, imag_y))
+  )
 end

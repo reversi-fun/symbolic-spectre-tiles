@@ -35,17 +35,29 @@ module GeometryStrategy
     raise NotImplementedError
   end
 
-  # Y軸反転を表すアフィン変換オブジェクトを返す
+  # 指定された角度の「純粋な回転」を表すアフィン変換オブジェクトを返す
+  # @param angle_deg [Integer] 角度（度数法）
+  # @param move_point [Point] 移動する点
   # @return [MatrixObject]
-  def reflection_transform
+  def create_transform(angle_deg, move_point, scale_y = 1)
     raise NotImplementedError
   end
+  # Y軸反転を表すアフィン変換オブジェクトを返す
+  # @return [MatrixObject]
+  # def reflection_transform
+  #   raise NotImplementedError
+  # end
 
   # 2つのアフィン変換を合成（乗算）する
   # @param matrix_a [MatrixObject]
   # @param matrix_b [MatrixObject]
   # @return [MatrixObject] 合成されたアフィン変換オブジェクト
   def compose_transforms(matrix_a, matrix_b)
+    raise NotImplementedError
+  end
+
+  # y軸について反転したアフィン変換を合成（乗算）する
+  def reflect_transform(matrix_b)
     raise NotImplementedError
   end
 
@@ -70,6 +82,10 @@ module GeometryStrategy
   # @param point [Point]
   # @return [Array<Float, Float>] [x座標, y座標]
   def point_to_svg_coords(point)
+    raise NotImplementedError
+  end
+
+  def to_internal_coefficients(point)
     raise NotImplementedError
   end
 
