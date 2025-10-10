@@ -71,11 +71,9 @@ class SpectreTilingGenerator
   # 初期化時に、使用する計算戦略(strategy)を受け取ります
   def initialize(strategy, edge_a, edge_b)
     @strategy = strategy
-    @edge_a = edge_a
-    @edge_b = edge_b
 
     # 必要な初期値を戦略オブジェクトから取得します
-    @spectre_points = @strategy.define_spectre_points(@edge_a, @edge_b)
+    @spectre_points = @strategy.define_spectre_points(edge_a, edge_b)
     @spectre_quad = [3, 5, 7, 11].map { |idx| @spectre_points[idx].dup }
     @identity = @strategy.identity_transform
     # @reflection = @strategy.reflection_transform

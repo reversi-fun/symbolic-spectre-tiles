@@ -20,17 +20,20 @@ class SymbolicCoefStrategy
       180 => [Complex(MyNumeric1Coef.new(-2, 0), MyNumeric1Coef.new(0, 0)), Complex(MyNumeric1Coef.new(0, 0), MyNumeric1Coef.new(-2, 0)), no_move_point],
       240 => [Complex(MyNumeric1Coef.new(-1, 0), MyNumeric1Coef.new(0, -1)), Complex(MyNumeric1Coef.new(0, 1), MyNumeric1Coef.new(-1, 0)), no_move_point],
       30  => [Complex(MyNumeric1Coef.new(0, 1), MyNumeric1Coef.new(1, 0)), Complex(MyNumeric1Coef.new(-1, 0), MyNumeric1Coef.new(0, 1)), no_move_point],
+      # scectre模様の描画には不要だが、検証コードには必要な回転角
       90  => [Complex(MyNumeric1Coef.new(0, 0), MyNumeric1Coef.new(2, 0)), Complex(MyNumeric1Coef.new(-2, 0), MyNumeric1Coef.new(0, 0)), no_move_point],
       150 => [Complex(MyNumeric1Coef.new(0, -1), MyNumeric1Coef.new(1, 0)), Complex(MyNumeric1Coef.new(-1, 0), MyNumeric1Coef.new(0, -1)), no_move_point],
       210 => [Complex(MyNumeric1Coef.new(0, -1), MyNumeric1Coef.new(-1, 0)), Complex(MyNumeric1Coef.new(1, 0), MyNumeric1Coef.new(0, -1)), no_move_point],
       270 => [Complex(MyNumeric1Coef.new(0, 0), MyNumeric1Coef.new(-2, 0)), Complex(MyNumeric1Coef.new(2, 0), MyNumeric1Coef.new(0, 0)), no_move_point],
-      330 => [Complex(MyNumeric1Coef.new(0, 1), MyNumeric1Coef.new(-1, 0)), Complex(MyNumeric1Coef.new(1, 0), MyNumeric1Coef.new(0, 1)), no_move_point],
-      -30 => [Complex(MyNumeric1Coef.new(0, 1), MyNumeric1Coef.new(-1, 0)), Complex(MyNumeric1Coef.new(1, 0), MyNumeric1Coef.new(0, 1)), no_move_point],
       300 => [Complex(MyNumeric1Coef.new(1, 0), MyNumeric1Coef.new(0,-1)), Complex(MyNumeric1Coef.new(0, 1), MyNumeric1Coef.new(1, 0)), no_move_point],
-      -60 => [Complex(MyNumeric1Coef.new(1, 0), MyNumeric1Coef.new(0,-1)), Complex(MyNumeric1Coef.new(0, 1), MyNumeric1Coef.new(1, 0)), no_move_point],
-      -90 => [Complex(MyNumeric1Coef.new(0, 0), MyNumeric1Coef.new(-2, 0)), Complex(MyNumeric1Coef.new(2, 0), MyNumeric1Coef.new(0, 0)), no_move_point],
-      -120=> [Complex(MyNumeric1Coef.new(-1, 0), MyNumeric1Coef.new(0, -1)), Complex(MyNumeric1Coef.new(0, 1), MyNumeric1Coef.new(-1, 0)), no_move_point],
-      -150=> [Complex(MyNumeric1Coef.new(0, -1), MyNumeric1Coef.new(-1, 0)), Complex(MyNumeric1Coef.new(1, 0), MyNumeric1Coef.new(0, -1)), no_move_point],    }
+      330 => [Complex(MyNumeric1Coef.new(0, 1), MyNumeric1Coef.new(-1, 0)), Complex(MyNumeric1Coef.new(1, 0), MyNumeric1Coef.new(0, 1)), no_move_point],
+      # 回転角を　逐次0から330に正規化したことにより不要となった角度
+      # -30 => [Complex(MyNumeric1Coef.new(0, 1), MyNumeric1Coef.new(-1, 0)), Complex(MyNumeric1Coef.new(1, 0), MyNumeric1Coef.new(0, 1)), no_move_point],
+      # -60 => [Complex(MyNumeric1Coef.new(1, 0), MyNumeric1Coef.new(0,-1)), Complex(MyNumeric1Coef.new(0, 1), MyNumeric1Coef.new(1, 0)), no_move_point],
+      # -90 => [Complex(MyNumeric1Coef.new(0, 0), MyNumeric1Coef.new(-2, 0)), Complex(MyNumeric1Coef.new(2, 0), MyNumeric1Coef.new(0, 0)), no_move_point],
+      # -120=> [Complex(MyNumeric1Coef.new(-1, 0), MyNumeric1Coef.new(0, -1)), Complex(MyNumeric1Coef.new(0, 1), MyNumeric1Coef.new(-1, 0)), no_move_point],
+      # -150=> [Complex(MyNumeric1Coef.new(0, -1), MyNumeric1Coef.new(-1, 0)), Complex(MyNumeric1Coef.new(1, 0), MyNumeric1Coef.new(0, -1)), no_move_point],
+    }
     # p "@@trot_memo="
     # @@trot_memo.each{|angle, value| p "#{angle} => #{value[0].to_s}, #{[value[0].real.to_f, value[0].imag.to_f]} ,#{(Math.atan2(value[0].imag.to_f,value[0].real.to_f ) / Math::PI * 180).round}, #{(Math.atan2(-value[1].real.to_f,value[1].imag.to_f ) / Math::PI * 180).round}"}
   end
@@ -92,12 +95,21 @@ class SymbolicCoefStrategy
   # end
 
   def compose_transforms(matrix_a, matrix_b)
-    # 元のコードのmul関数のロジック
-    [
+     p ["debug at enter compose_transforms", [get_angle_from_transform(matrix_a), to_coef(matrix_a[2]), matrix_a[2].to_s], [get_angle_from_transform(matrix_b), to_coef(matrix_b[2]), matrix_b[2].to_s]] if debug?
+    transform =[
       Complex(matrix_a[0].real * matrix_b[0].real + matrix_a[1].real * matrix_b[0].imag, matrix_a[0].imag * matrix_b[0].real + matrix_a[1].imag * matrix_b[0].imag),
       Complex(matrix_a[0].real * matrix_b[1].real + matrix_a[1].real * matrix_b[1].imag, matrix_a[0].imag * matrix_b[1].real + matrix_a[1].imag * matrix_b[1].imag),
-      Complex(matrix_a[0].real * matrix_b[2].real + matrix_a[1].real * matrix_b[2].imag + matrix_a[2].real, matrix_a[0].imag * matrix_b[2].real + matrix_a[1].imag * matrix_b[2].imag + matrix_a[2].imag)
+      Complex(matrix_a[0].real * matrix_b[2].real + matrix_a[1].real * matrix_b[2].imag + matrix_a[2].real,
+              matrix_a[0].imag * matrix_b[2].real + matrix_a[1].imag * matrix_b[2].imag + matrix_a[2].imag)
     ]
+    p ["debug at leaves compose_transforms", [angles=get_angle_from_transform(transform), to_coef(transform[2]), transform[2].to_s]] if debug?
+    # angle_x, scale_x, angle_diff_x = angles
+    # angle_x %= 360
+    # angle_a, scale_a,angle_diff_a = get_angle_from_transform(matrix_a)
+    # angle_b, scale_b,angle_diff_b = get_angle_from_transform(matrix_b)
+    # p ["debug at leaves angles", [angle_a, angle_b, angle_x], [scale_a, scale_b, scale_x],[angle_diff_a, angle_diff_b, angle_diff_x],  [(angle_a + angle_b) % 360 == angle_x, (angle_a - angle_b) % 360 == angle_x],
+    # (angle_a == 0 || angle_b == 0 ? "zero" : "nonZero"),(angle_b == 30 ? "change_axis" : "no_change_axis") , (angle_x - angle_a - angle_b) % 360]
+    transform
   end
 
   def reflect_transform(trsf_b)
@@ -106,14 +118,16 @@ class SymbolicCoefStrategy
       Complex(-trsf_b[1].real, trsf_b[1].imag),
       Complex(-trsf_b[2].real, trsf_b[2].imag)
     ]
-    p ["debug at leave reflect_transform" , get_angle_from_transform(trsf_b), get_angle_from_transform(transform),  trsf_b.map{|c| c.to_s}, transform.map{|c| c.to_s}]
+    p ["debug at leaves reflect_transform", [get_angle_from_transform(trsf_b), to_coef(trsf_b[2]), trsf_b[2].to_s], [get_angle_from_transform(transform), to_coef(transform[2]), transform[2].to_s]] if debug?
     transform
   end
 
   def transform_point(transform, point)
     # 元のコードのtransPt関数のロジック
-    Complex(point.real * transform[0].real + point.imag * transform[1].real,
+    transformed_point = Complex(point.real * transform[0].real + point.imag * transform[1].real,
             point.real * transform[0].imag + point.imag * transform[1].imag) + transform[2]
+    p ["debug at leaves transform_point" , [get_angle_from_transform(transform), to_coef(transform[2]), transform[2].to_s], [to_coef(point), point.to_s], [to_coef(transformed_point), transformed_point.to_s] ] if debug?
+    transformed_point
   end
 
   # === データ変換・解析メソッド ===
@@ -123,21 +137,17 @@ class SymbolicCoefStrategy
     yvec = transform[1]
 
     # x軸ベクトルから回転角度を算出 (cos,sin)
-    deg_x = (Math.atan2(xvec.imag.to_f, xvec.real.to_f) / Math::PI * 180).round
-    deg_x -= 360 if deg_x > 270
-    deg_x += 360 if deg_x < -270
+    deg_x = (Math.atan2(xvec.imag.to_f, xvec.real.to_f) / Math::PI * 180).round % 360
 
     # y軸ベクトルから角度を算出（比較用）(-sin,cos)
-    deg_y = (Math.atan2(yvec.imag.to_f, yvec.real.to_f) / Math::PI * 180).round
-    deg_y -= 360 if deg_y > 270
-    deg_y += 360 if deg_y < -270
+    deg_y = (Math.atan2(yvec.imag.to_f, yvec.real.to_f) / Math::PI * 180).round % 360
 
     # xvec と yvec の関係から scale_y を判定
-    angle_between = deg_y - deg_x
+    angle_between = (deg_y - deg_x) % 360
 
     scale_y = case angle_between
-            when 90, -270, 210 then 1
-            when -90, 270, 150 then -1
+            when 90, 210 then 1
+            when 270, 150 then -1
             else
               raise "反転判定エラー: xvecとyvecが直交していません（差=#{angle_between}°）\n" \
                     "xvec: #{xvec.to_s} → 角度=#{deg_x}°\n" \
@@ -175,16 +185,20 @@ require 'matrix'
 if __FILE__ == $0
   # 回転戦略インスタンス
   strategy = SymbolicCoefStrategy.new
+  strategy.set_debug(true)
   # スケール設定
   spectre_points=strategy.define_spectre_points(1.0, 1.0)
   mystic_points=strategy.define_mystic_points(spectre_points)
-
+  mystic_rotate30degree_points = mystic_points.map{|point| strategy.transform_point(strategy.rotation_transform(30), point)}
   # 図形のパス表示
   puts "# spectre_points = ["
-  spectre_points.each_with_index{|point,i| p [i, strategy.to_internal_coefficients(point), point.to_s ]}
+  spectre_points.each_with_index{|point,i| p [i, strategy.to_internal_coefficients(point), strategy.point_to_svg_coords(point), strategy.point_to_symbolic_str(point) ]}
   puts "]"
   puts "# mystic_points = ["
-  mystic_points.each_with_index{|point,i| p  [i, strategy.to_internal_coefficients(point), point.to_s ]}
+  mystic_points.each_with_index{|point,i| p  [i, strategy.to_internal_coefficients(point), strategy.point_to_svg_coords(point),  strategy.point_to_symbolic_str(point) ]}
+  puts "]"
+  puts "# mystic rotates 30 degree points = ["
+  mystic_rotate30degree_points.each_with_index{|point,i| p  [i, strategy.to_internal_coefficients(point), strategy.point_to_svg_coords(point),  strategy.point_to_symbolic_str(point) ]}
   puts "]"
 
   # 初期点（代数的座標）
@@ -204,15 +218,13 @@ if __FILE__ == $0
         norm = Math.sqrt(rotated_float[0]**2 + rotated_float[1]**2)
         raise "Normalize Error #{norm} #{rotated_float} coef: #{strategy.to_internal_coefficients(rotated)} from #{strategy.to_internal_coefficients(point)}" unless (norm - 1.0).abs <= 1e-6
         recovered_angle_float_i = (Math.atan2(rotated_float[1], rotated_float[0]) / Math::PI * 180).round
-        recovered_angle_float_i += 360 if recovered_angle_float_i < -270
+        recovered_angle_float_i %= 360
 
         expected_angle = reflection_scale < 0 ? 180 - effective_angle : effective_angle
-        expected_angle -= 360 if expected_angle > 270
-        expected_angle += 360 if expected_angle < -270
+        expected_angle %= 360
 
         recovered_angle, recovered_reflection = strategy.get_angle_from_transform(transform)
-        recovered_angle -= 360 if recovered_angle > 270
-        recovered_angle += 360 if recovered_angle < -270
+        recovered_angle %= 360
 
         ok_logic = (recovered_angle - expected_angle) % 360 == 0 ? 'OK' : 'NG'
         ok_float = (recovered_angle_float_i - expected_angle) % 360 == 0 ? 'OK' : 'NG'
@@ -226,9 +238,7 @@ if __FILE__ == $0
     [1, -1].each do |reflection_scale|
       (30..330).step(30).each do |angle|
         transform = strategy.rotation_transform(angle)
-        p ["debug at before strategy.reflect_transform", angle,reflection_scale, strategy.get_angle_from_transform(transform), transform.map{|v| v.to_s}]
         transform = strategy.reflect_transform(transform) if reflection_scale == -1
-        p ["debug at after  strategy.reflect_transform", angle,reflection_scale, strategy.get_angle_from_transform(transform), transform.map{|v| v.to_s}]
         rotated_points = points.map{|point| strategy.transform_point(transform, point)}
 
         raw_a = []

@@ -19,6 +19,7 @@ start_time = Time.now
 # 使用するジオメトリ戦略をインスタンス化
 # strategy = SymbolicCoefStrategy.new
 strategy = CyclotomicStrategy.new
+strategy.set_debug(false)
 
 # ジェネレータに戦略を渡して初期化
 generator = SpectreTilingGenerator.new(strategy, EDGE_A, EDGE_B)
@@ -34,7 +35,7 @@ generator = SpectreTilingGenerator.new(strategy, EDGE_A, EDGE_B)
 color_strategy = MonoChromeStrategy.new
 
 # --- 2. タイリング生成の実行 ---
-puts "* タイリング生成を開始します (N=#{N_ITERATIONS})"
+puts "* タイリング生成を開始します (N=#{N_ITERATIONS}) by #{strategy.name} and #{color_strategy.name}..."
 generator.generate(N_ITERATIONS)
 root_tile = generator.root_tile
 puts "* タイル生成完了: #{Time.now - start_time}秒"

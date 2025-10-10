@@ -89,6 +89,13 @@ module GeometryStrategy
     raise NotImplementedError
   end
 
+  def set_debug(flag)
+    @debug = flag
+  end
+
+  def debug?
+    @debug
+  end
   def name
     self.class.name.gsub(/Strategy$/, '').gsub(/::/, '_')
   end
