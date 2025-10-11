@@ -47,7 +47,7 @@ max_x, max_y = -Float::INFINITY, -Float::INFINITY
 num_tiles = 0
 
 root_tile.for_each_tile(strategy.identity_transform, []) do |transform, _, _|
-  coords = strategy.point_to_svg_coords(transform[2])
+  coords = strategy.point_to_svg_coords(transform)
   min_x = [min_x, coords[0]].min
   min_y = [min_y, coords[1]].min
   max_x = [max_x, coords[0]].max

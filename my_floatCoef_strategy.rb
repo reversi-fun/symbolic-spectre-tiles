@@ -50,6 +50,12 @@ class FloatStrategy
     ]
   end
 
+  def define_mystic_points(spectre_points)
+    a = spectre_points[1].real
+    b = spectre_points.last.imag
+    return define_spectre_points(b,a)
+  end
+
   # @see GeometryStrategy#identity_transform
   def identity_transform
     no_move_point = Complex(0, 0)
@@ -131,8 +137,13 @@ class FloatStrategy
     return [w[2].real.to_f, w[2].imag.to_f] if w.is_a?(Array) && w[2].is_a?(Complex)
     p ["NotImplementedError", w.class.name, w]
     raise NotImplementedError
-
   end
+
+   def point_to_symbolic_str(w)
+    real, imag = point_to_svg_coords(w)
+    return "#{real} + #{imag}i"
+  end
+
 
   def to_internal_coefficients(point)
     return [point.real.to_f, point.imag.to_f] if point.is_a?(Complex)

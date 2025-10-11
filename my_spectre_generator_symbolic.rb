@@ -7,9 +7,10 @@ require './my_SymbolicCoef_strategy'
 require './my_coloring_strategies'
 require './my_spectre_generator_generic'
 require './my_cyclotomic_strategy'
+require './my_floatCoef_strategy'
 
 # --- 設定 ---
-N_ITERATIONS = 3
+N_ITERATIONS = 4
 EDGE_A = 20.0 / (Math.sqrt(3) + 2.0)
 EDGE_B = 20.0 - EDGE_A
 
@@ -19,6 +20,7 @@ start_time = Time.now
 # 使用するジオメトリ戦略をインスタンス化
 # strategy = SymbolicCoefStrategy.new
 strategy = CyclotomicStrategy.new
+# strategy = FloatStrategy.new
 strategy.set_debug(false)
 
 # ジェネレータに戦略を渡して初期化

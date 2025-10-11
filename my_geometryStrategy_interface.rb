@@ -79,9 +79,18 @@ module GeometryStrategy
   end
 
   # 内部表現の点オブジェクトを、SVG描画用の[Float, Float]に変換する
-  # @param point [Point]
+  # アフィン変換オブジェクトが渡された場合は、その移動量を点オブジェクトとして解釈する
+  # @param point [Point | MatrixObject]
   # @return [Array<Float, Float>] [x座標, y座標]
   def point_to_svg_coords(point)
+    raise NotImplementedError
+  end
+
+  # 内部表現の点オブジェクトを、代数表現形式の4係数に変換する
+  # アフィン変換オブジェクトが渡された場合は、その移動量を点オブジェクトとして解釈する
+  # @param point [Point]
+  # @return [Array<Integer, Integer, Integer, Integer>] [a0, a1, b0, b1]]
+  def point_to_symbolic_str(point)
     raise NotImplementedError
   end
 
