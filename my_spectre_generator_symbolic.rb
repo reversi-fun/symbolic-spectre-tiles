@@ -164,17 +164,28 @@ File.open(csv_filename, 'w', encoding: 'UTF-8') do |file|
 end
 puts "* CSV出力完了: #{Time.now - csv_time}秒"
 
-# coef_filename = svg_filename + '.coef'
-# puts "* coefファイルを出力中 (第3パス): #{coef_filename}"
+# spectre模様の全頂点のcsv出力
+csv_filename = svg_filename + '_full_vertex.csv'
+puts "* spectre模様の全頂点のCSVファイルを出力中 (第4パス): #{csv_filename}"
+csv_time = Time.now
+scale_y = N_ITERATIONS.even? ? 1 : -1
 
-# coef_time = Time.now
-#   root_tile.for_each_tile(strategy.identity_transform, [], root_tile) do |transform, label, parent_info, parent_tile, cur_tile|
-#     trsf = transform
-#     angle, = strategy.get_angle_from_transform(trsf)
-#     coef = to_coef(trsf[2])
-#     p [cur_tile.id, label,angle, coef, parent_tile.id, parent_tile.label, parent_info]
-#     # file.puts "#{tile_index},\"#{label}\",\"#{trsf[2]}\",#{angle},#{trsf0[0]},#{trsf0[1]},#{trsf1[0]},#{trsf1[1]},#{pos[0]},#{pos[1]}, #{coef.join(', ')}"
-#   end
-# puts "* coef出力完了: #{Time.now - coef_time}秒"
+# CSV出力
+File.open(csv_filename, 'w', encoding: 'UTF-8') do |file|
+  file.puts "\uFEFF" + "shape#,vertex_index,label,angle,vertex_expression,x,y,pt0-coef:a0,a1,b0,b1"
+  shape_index = 0
+  root_tile.for_each_tile(strategy.identity_transform) do |transform, label, parent_info|
+    trsf = scale_y == 1 ? transform : strategy.reflect_transform(transform)
+    angle, = strategy.get_angle_from_transform(trsf)
+    shape_points = label != 'Gamma2' ? spectre_points : mystic_points
+    shape_points.each_with_index do |originPoint,j|
+    point = strategy.transform_point(trsf, originPoint)
+    pos = strategy.point_to_svg_coords(point)
+    coef =strategy.to_internal_coefficients(point)
+    file.puts "#{shape_index},#{-1 - j},\"#{label}\",#{angle},\"#{strategy.point_to_symbolic_str(point)}\",#{pos[0]},#{pos[1]},#{coef.join(', ')}"
+    end
+    shape_index += 1
+  end
+end
 
 puts "* 全処理時間: #{Time.now - start_time}秒"
