@@ -283,7 +283,14 @@ class CyclotomicStrategy
   def transform_point(transform, point)
     raise ArgumentError.new("第1引数はCyclotomicTransformである必要があります(#{transform.class}: #{transform})") unless transform.is_a?(CyclotomicTransform)
     raise ArgumentError.new("第2引数はCyclotomicPointである必要があります(#{point.class}: #{point})") unless point.is_a?(CyclotomicPoint)
-    raise ArgumentError.new("座標系が一致しません") unless transform.to_point.dominant_axis == point.dominant_axis || transform.to_point.dominant_axis == :zero_spectre_mystic || point.dominant_axis == :zero_spectre_mystic
+    unless transform.to_point.dominant_axis == :zero_spectre_mystic ||
+       point.dominant_axis == :zero_spectre_mystic ||
+      (transform.info[:change_axis] == 1 && transform.to_point.dominant_axis == point.dominant_axis) ||
+      (transform.info[:change_axis] == -1 && transform.to_point.dominant_axis != point.dominant_axis)
+      angle_scale_y = get_angle_from_transform(transform)
+      p ["座標系が一致しません", [angle_scale_y, transform.to_point.dominant_axis, transform.info[:change_axis],transform.to_point.to_s], [point.dominant_axis,point.to_s]]
+      raise ArgumentError.new("座標系が一致しません")
+    end
     rotated_vec = (transform.matrix.transpose * point.vector)
     rotated_vec = CyclotomicTransform.reflect_matlix * rotated_vec if transform.scale_y == -1
     rotated_vec += transform.to_point.vector
@@ -336,7 +343,7 @@ end
 if __FILE__ == $0
   # 回転戦略インスタンス
   strategy = CyclotomicStrategy.new # スケール設定（任意）
-  strategy.set_debug(true)
+  strategy.set_debug(false)
   CyclotomicPoint.set_scale(1.0, 1.0) # 初期点（代数的座標）
   point = CyclotomicPoint.new(1, 0, 0, 0) # スケール設定
   spectre_points=strategy.define_spectre_points(1.0, 1.0)
@@ -425,6 +432,48 @@ if __FILE__ == $0
         # p ["x * a_data", x * a_data]
       end
     end
+  end
+
+  puts "spectre図形の　回転または転置ごとの　相対座標"
+  relatived_point_coef_set = Set.new()
+  edge1st_coef_set = Set.new()
+  edge2st_coef_set = Set.new()
+  count_of_relatived_point_coef = 0
+  [spectre_points, mystic_rotate30degree_points].each_with_index do | points, i|
+    [1, -1].each do |reflection_scale|
+      [0, 60, 120, 180, 240].each do |angle|
+        transform = strategy.rotation_transform(angle)
+        transform = strategy.reflect_transform(transform) if reflection_scale == -1
+        curBasePoints = points.map{|point| strategy.transform_point(transform, point)}
+        points.size.times do |rotate_element|
+          rotated_points = curBasePoints.rotate(rotate_element)
+          first_point = rotated_points[0].dup
+          relatived_point_coef = rotated_points.map{|point| strategy.to_internal_coefficients(point - first_point)[0..3]}
+          relatived_point_coef_set.add((relatived_point_coef + ([[:spectre, :mystic][i]])).inspect )
+          edge1st_coef_set.add(rotated_points[1..1].map{|point| strategy.to_internal_coefficients(point - first_point)[0..3]}.inspect)
+          edge2st_coef_set.add((rotated_points[1..2].map{|point| strategy.to_internal_coefficients(point - first_point)[0..3]}).inspect)
+          # edge2st_coef_set.add((rotated_points[1..2].map{|point| strategy.to_internal_coefficients(point - first_point)[0..3] } + ([[:spectre, :mystic][i]])).inspect)
+          # p [i, (reflection_scale == -1 ? "180-#{angle}" : angle), rotate_element, strategy.to_internal_coefficients(first_point), relatived_point_coef]
+          count_of_relatived_point_coef += 1
+        end
+      end
+    end
+  end
+
+  p ["count_of_relatived_point_coef", count_of_relatived_point_coef]
+  p ["relatived_point_coef_set.size", relatived_point_coef_set.size]
+  relatived_point_coef_set.map(&:to_s).sort.each do |relatived_point_coef|
+    puts relatived_point_coef
+  end
+  p ["count_of_relatived_point_coef", count_of_relatived_point_coef]
+  p ["relatived_point_coef_set.size", relatived_point_coef_set.size]
+  p ["edge1st_coef_set.size", edge1st_coef_set.size]
+  edge1st_coef_set.map(&:to_s).sort.each do |edge_coef|
+    puts edge_coef
+  end
+  p ["edge2st_coef_set.size", edge2st_coef_set.size]
+  edge2st_coef_set.map(&:to_s).sort.each do |edge_coef|
+    puts edge_coef
   end
 
 end
