@@ -35,6 +35,21 @@ def pca_components(data, n_components = 2)
              .map { |_, vec| vec.to_a }
 
   sorted
+  # # 標準化（平均0、分散1）
+  # cols = data.transpose
+  # means = cols.map { |col| col.sum / col.size }
+  # stds  = cols.map { |col| Math.sqrt(col.map { |x| (x - col.sum / col.size)**2 }.sum / col.size) }
+
+  # standardized = data.map do |row|
+  #   row.zip(means, stds).map { |x, m, s| s.zero? ? 0.0 : (x - m) / s }
+  # end
+
+  # m = Matrix[*standardized]
+  # u, s, vt = m.singular_value_decomposition
+
+  # # vt は右特異ベクトル（主成分）
+  # components = vt.to_a.first(n_components)
+  # components
 end
 
 def normalize(v)
@@ -48,12 +63,44 @@ def orthogonalize(v1, v2)
   v2.zip(v1).map { |b, a| b - scale * a }
 end
 
-def least_squares(x_data, y_data)
+def least_squares(x_data, y_data, max_iter = 3, tol = 1e-6, lambda = 1e-8)
+
   x = Matrix[*x_data]
   y = Vector[*y_data]
   xt = x.transpose
+
   beta = (xt * x).inverse * xt * y
   beta.to_a
+
+  # identity = Matrix.identity(x.column_count)
+
+  # best_rmse = Float::INFINITY
+  # best_beta = nil
+
+  # max_iter.times do
+  #   begin
+  #     beta = (xt * x + lambda * identity).inverse * xt * y
+  #   rescue StandardError
+  #     lambda *= 10
+  #     next
+  #   end
+
+  #   # 推定値とRMSEを計算
+  #   y_pred = x.map { |row| row.zip(beta.to_a).map { |a, b| a * b }.sum }
+  #   error = y_pred.zip(y.to_a).map { |pred, actual| (pred - actual)**2 }
+  #   rmse_val = Math.sqrt(error.sum / error.size)
+
+  #   if rmse_val < best_rmse - tol
+  #     best_rmse = rmse_val
+  #     best_beta = beta
+  #   else
+  #     break
+  #   end
+
+  #   lambda *= 10
+  # end
+
+  # best_beta ? best_beta.to_a : Array.new(x.column_count, 0.0)
 end
 
 def rmse(vectors)
@@ -244,37 +291,6 @@ puts "\n✅ 使用係数: c0=#{c0.round(4)}, c1=#{c1.round(4)}, d0=#{d0.round(4)
 
 # --- ステップ5: 近傍探索 ---
 require 'set'
-
-visited = Set.new
-candidates = []
-queue = []
-queue.push([0, 0, 0, 0])
-
-max_points = 20000
-max_a0 = 5
-max_b0 = 20
-# dw = (4.0 / c0 / c1).abs.ceil
-
-# while !queue.empty? && candidates.size < max_points
-#   a0, a1, b0, b1 = queue.shift
-#   [
-#     [-1, 0, 0, 0], [-1, 1, 0, 0], [0, -1, 0, 0],
-#     [0, 0, -1, 0], [0, 0, -1, 1], [0, 0, 0, -1],
-#     [0, 0, 0, 1], [0, 0, 1, -1], [0, 0, 1, 0],
-#     [0, 1, 0, 0], [1, -1, 0, 0], [1, 0, 0, 0]
-#   ].each do |dA0, dA1, dB0, dB1|
-#     vec = [a0 + dA0, a1 + dA1, b0 + dB0, b1 + dB1]
-#     next unless (-max_a0..max_a0).include?(vec[0]) && (-max_b0..max_b0).include?(vec[2])
-#     next if visited.include?(vec)
-#     visited << vec
-#     perp = P_perp_basis.map { |basis| vec.zip(basis).map { |a, b| a * b }.sum }
-#     if Math.sqrt(perp.map { |x| x**2 }.sum) < window_radius
-#       candidates << vec + perp
-#       queue.push(vec)
-#     end
-#   end
-# end
-
 # --- 近傍探索に使う関数 ---
 def estimate_a1_b1(a0, b0, c0, c1, d0, d1)
   det = c1 * d1 - 1
@@ -288,32 +304,281 @@ def estimate_a1_b1(a0, b0, c0, c1, d0, d1)
   [a1, b1]
 end
 
-(-max_a0..max_a0).each do |a0|
-  (-max_b0..max_b0).each do |b0|
-    begin
-      a1_est, b1_est = estimate_a1_b1(a0, b0, c0, c1, d0, d1)
-    rescue
+
+find_start_time = Time.now
+candidates = []
+
+max_points = 30000
+
+Start_node = Vector[1,-230,-201,81]
+Min_a0 = -1
+Max_a0 = 24
+Min_b0 = -226
+Max_b0 = -200
+
+# visited = Set.new
+# queue = []
+# queue.push([0, 0, 0, 0])
+# while !queue.empty? && candidates.size < max_points
+#   a0, a1, b0, b1 = queue.shift
+#   [
+#     [-1, 0, 0, 0], [-1, 1, 0, 0], [0, -1, 0, 0],
+#     [0, 0, -1, 0], [0, 0, -1, 1], [0, 0, 0, -1],
+#     [0, 0, 0, 1], [0, 0, 1, -1], [0, 0, 1, 0],
+#     [0, 1, 0, 0], [1, -1, 0, 0], [1, 0, 0, 0]
+#   ].each do |dA0, dA1, dB0, dB1|
+#     vec = [a0 + dA0, a1 + dA1, b0 + dB0, b1 + dB1]
+#     next unless (Min_a0..Max_a0).include?(vec[0]) && (Min_b0..Max_b0).include?(vec[2])
+#     next if visited.include?(vec)
+#     visited << vec
+#     perp = P_perp_basis.map { |basis| vec.zip(basis).map { |a, b| a * b }.sum }
+#     a1_est, b1_est = estimate_a1_b1(a0, b0, c0, c1, d0, d1)
+#     if point_inside_polygon?(perp, boundary_polygon) &&   # ✅ 渦巻きの内側 → 採用
+#       (a1_est -a1).abs < window_radius && (b1_est - b1).abs < window_radius
+#       candidates << vec + perp
+#       queue.push(vec)
+#     end
+#   end
+# end
+# 💾 生成された4D整数座標を 13632個、'generated_spectre_integer_coords3.csv' に保存中... ["spectre座標　探索時間", 0.4056887]　
+
+# --- 幾何学的特徴の定義 ---
+# edge1st_coef_set: 許容される隣接ベクトル (12種類)
+EDGE_1ST_VECTORS = Set[
+  [-1, 0, 0, 0], [-1, 1, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0],
+  [0, 0, -1, 1], [0, 0, 0, -1], [0, 0, 0, 1], [0, 0, 1, -1],
+  [0, 0, 1, 0], [0, 1, 0, 0], [1, -1, 0, 0], [1, 0, 0, 0]
+].map { |v| Vector[*v] } # 計算しやすいようにVectorオブジェクトに変換
+
+# edge2st_coef_set: 許容される2ステップの経路 (60種類)
+# これを「前のステップ」から「次のステップ」への対応表に変換する
+LEGAL_NEXT_STEPS = Hash.new { |h, k| h[k] = [] }
+[
+[[-1, 0, 0, 0], [-1, -1, 0, 0]],
+[[-1, 0, 0, 0], [-1, 0, -1, 0]],
+[[-1, 0, 0, 0], [-1, 0, 1, 0]],
+[[-1, 0, 0, 0], [-2, 0, 0, 0]],
+[[-1, 0, 0, 0], [-2, 1, 0, 0]],
+[[-1, 1, 0, 0], [-1, 1, 0, -1]],
+[[-1, 1, 0, 0], [-1, 1, 0, 1]],
+[[-1, 1, 0, 0], [-1, 2, 0, 0]],
+[[-1, 1, 0, 0], [-2, 1, 0, 0]],
+[[-1, 1, 0, 0], [-2, 2, 0, 0]],
+[[0, -1, 0, 0], [-1, -1, 0, 0]],
+[[0, -1, 0, 0], [0, -1, -1, 1]],
+[[0, -1, 0, 0], [0, -1, 1, -1]],
+[[0, -1, 0, 0], [0, -2, 0, 0]],
+[[0, -1, 0, 0], [1, -2, 0, 0]],
+[[0, 0, -1, 0], [-1, 0, -1, 0]],
+[[0, 0, -1, 0], [0, 0, -1, -1]],
+[[0, 0, -1, 0], [0, 0, -2, 0]],
+[[0, 0, -1, 0], [0, 0, -2, 1]],
+[[0, 0, -1, 0], [1, 0, -1, 0]],
+[[0, 0, -1, 1], [0, -1, -1, 1]],
+[[0, 0, -1, 1], [0, 0, -1, 2]],
+[[0, 0, -1, 1], [0, 0, -2, 1]],
+[[0, 0, -1, 1], [0, 0, -2, 2]],
+[[0, 0, -1, 1], [0, 1, -1, 1]],
+[[0, 0, 0, -1], [-1, 1, 0, -1]],
+[[0, 0, 0, -1], [0, 0, -1, -1]],
+[[0, 0, 0, -1], [0, 0, 0, -2]],
+[[0, 0, 0, -1], [0, 0, 1, -2]],
+[[0, 0, 0, -1], [1, -1, 0, -1]],
+[[0, 0, 0, 1], [-1, 1, 0, 1]],
+[[0, 0, 0, 1], [0, 0, -1, 2]],
+[[0, 0, 0, 1], [0, 0, 0, 2]],
+[[0, 0, 0, 1], [0, 0, 1, 1]],
+[[0, 0, 0, 1], [1, -1, 0, 1]],
+[[0, 0, 1, -1], [0, -1, 1, -1]],
+[[0, 0, 1, -1], [0, 0, 1, -2]],
+[[0, 0, 1, -1], [0, 0, 2, -1]],
+[[0, 0, 1, -1], [0, 0, 2, -2]],
+[[0, 0, 1, -1], [0, 1, 1, -1]],
+[[0, 0, 1, 0], [-1, 0, 1, 0]],
+[[0, 0, 1, 0], [0, 0, 1, 1]],
+[[0, 0, 1, 0], [0, 0, 2, -1]],
+[[0, 0, 1, 0], [0, 0, 2, 0]],
+[[0, 0, 1, 0], [1, 0, 1, 0]],
+[[0, 1, 0, 0], [-1, 2, 0, 0]],
+[[0, 1, 0, 0], [0, 1, -1, 1]],
+[[0, 1, 0, 0], [0, 1, 1, -1]],
+[[0, 1, 0, 0], [0, 2, 0, 0]],
+[[0, 1, 0, 0], [1, 1, 0, 0]],
+[[1, -1, 0, 0], [1, -1, 0, -1]],
+[[1, -1, 0, 0], [1, -1, 0, 1]],
+[[1, -1, 0, 0], [1, -2, 0, 0]],
+[[1, -1, 0, 0], [2, -1, 0, 0]],
+[[1, -1, 0, 0], [2, -2, 0, 0]],
+[[1, 0, 0, 0], [1, 0, -1, 0]],
+[[1, 0, 0, 0], [1, 0, 1, 0]],
+[[1, 0, 0, 0], [1, 1, 0, 0]],
+[[1, 0, 0, 0], [2, -1, 0, 0]],
+[[1, 0, 0, 0], [2, 0, 0, 0]]
+].each do |path|
+  # path = [vec_to_1st, vec_to_2nd]
+  # vec_to_2nd = vec_to_1st + next_step なので、
+  # next_step = vec_to_2nd - vec_to_1st
+  vec_to_1st = Vector[*path[0]]
+  vec_to_2nd = Vector[*path[1]]
+  next_step = vec_to_2nd - vec_to_1st
+
+  # 「-vec_to_1st」という方向から来た場合、「next_step」に進める、というルール
+  LEGAL_NEXT_STEPS[-vec_to_1st] << next_step
+end
+puts "\nジオメトリルールを構築完了。 LEGAL_NEXT_STEPSのキー数: #{LEGAL_NEXT_STEPS.size}"
+
+
+# --- ステップ5: 幾何学的・優先度付き探索 ---
+# puts "\n💡 幾何学的ルールを適用した優先度付き探索を開始します..."
+
+# candidates = []
+# generated_integer_coords = []
+
+# Start_node = Vector[0, 0, 0, 0]
+# # 優先度付きキューとして、常にソート済みの配列を維持する
+# # キューの要素: [優先度, 現在座標(Vector), 親座標(Vector) | nil]
+# priority_queue = [[0.0, Start_node, nil]]
+# visited = Set[Start_node]
+
+# while !priority_queue.empty? && candidates.size < max_points
+#   # 最も優先度の低い（＝有望な）ノードを取り出す
+#   priority, current_node, parent_node = priority_queue.shift
+
+#   # --- 採用処理 ---
+#   # 窓の内側のチェックは不要（キュー追加時に済んでいるため）
+#   candidates << current_node.to_a + ( P_perp_basis.map { |basis| current_node.inner_product(Vector[*basis]) })
+#   generated_integer_coords << current_node.to_a
+
+#   if candidates.size % 5000 == 0
+#     puts "   ... #{candidates.size} 個の頂点を生成済み。キューのサイズ: #{priority_queue.size}"
+#   end
+
+#   # --- 次の候補点を、文脈に応じて絞り込む ---
+#   prev_step = parent_node ? current_node - parent_node : nil
+
+#   next_possible_steps = if prev_step.nil?
+#     EDGE_1ST_VECTORS # 始点からは12方向全て
+#   else
+#     LEGAL_NEXT_STEPS[prev_step] || [] # ルールにない場合は空配列
+#   end
+
+#   next_possible_steps.each do |step_vec|
+#     neighbor_node = current_node + step_vec
+
+#     # 訪問済みチェックと範囲チェック
+#     next if visited.include?(neighbor_node)
+#     next unless (Min_a0..Max_a0).include?(neighbor_node[0]) && (Min_b0..Max_b0).include?(neighbor_node[2])
+
+#     visited << neighbor_node
+
+#     perp = P_perp_basis.map { |basis| neighbor_node.inner_product(Vector[*basis]) }
+#     neighbor_priority = Math.sqrt(perp.map { |x| x**2 }.sum)
+#     if neighbor_priority < window_radius &&
+#       point_inside_polygon?(perp, boundary_polygon)   # ✅ 渦巻きの内側 → 採用
+#       priority_queue << [neighbor_priority, neighbor_node, current_node]
+#     end
+#   end
+# end
+# 💾 生成された4D整数座標を 13526個、'generated_spectre_integer_coords3.csv' に保存中... ["spectre座標　探索時間", 0.5301304]
+
+# --- ステップ5: FIFOキューと先読みによる探索 ---
+puts "\n💡 FIFOキューと先読みルールを適用した、履歴に依存しない探索を開始します..."
+
+
+# キューの要素: [現在座標(Vector)] のみ
+# Start_node = Vector[0, 0, 0, 0]
+queue = [Start_node] # シンプルなFIFOキュー
+visited = Set[Start_node]
+window_radius_2pow = window_radius**2
+
+# --- メインの探索ループ ---
+while !queue.empty? && candidates.size < max_points
+  # キューの先頭からFIFOで取り出す
+  current_node = queue.shift
+
+  # --- 採用処理 ---
+  current_node_perp = P_perp_basis.map { |basis| current_node.inner_product(Vector[*basis]) }
+  next unless point_inside_polygon?(current_node_perp, boundary_polygon)
+  candidates << current_node.to_a + current_node_perp
+
+  if candidates.size % 5000 == 0
+    puts "   ... #{candidates.size} 個の頂点を生成済み。キューのサイズ: #{queue.size}"
+  end
+
+  # --- 次の候補を、履歴に依存せず常に12方向から探す ---
+  EDGE_1ST_VECTORS.each do |step_vec|
+    neighbor_node = current_node + step_vec
+
+    # 訪問済みチェックと範囲チェック
+    next unless (Min_a0..Max_a0).include?(neighbor_node[0]) && (Min_b0..Max_b0).include?(neighbor_node[2])
+    next if visited.include?(neighbor_node)
+
+    # 候補点の有効性チェック（窓の内側か？）
+    neighbor_node_perp = P_perp_basis.map { |basis| neighbor_node.inner_product(Vector[*basis]) }
+    unless (neighbor_node_perp.map { |x| x**2 }.sum) < window_radius_2pow &&
+      point_inside_polygon?(neighbor_node_perp, boundary_polygon)
+      visited << neighbor_node
       next
     end
 
-    ((a1_est - window_radius).floor).upto((a1_est + window_radius).ceil) do |a1|
-      ((b1_est - window_radius).floor).upto((b1_est + window_radius).ceil) do |b1|
-        vec = [a0, a1, b0, b1]
-        next if visited.include?(vec)
-        visited << vec
+    # --- 「先読み」ロジック ---
+    is_not_dead_end = false
+    # この候補手（neighbor_node）から、さらに次に行ける手を探す
+    # 次のステップは、現在の移動ベクトル(step_vec)に依存する
+    grandchild_possible_steps = LEGAL_NEXT_STEPS[step_vec] || []
+    grandchild_possible_steps.each do |grandchild_step_vec|
+      grandchild_node = neighbor_node + grandchild_step_vec
 
-        perp = P_perp_basis.map { |basis| vec.zip(basis).map { |a, b| a * b }.sum } # perp = [x, y] ← 任意の候補点
-        if point_inside_polygon?(perp, boundary_polygon)   # ✅ 渦巻きの内側 → 採用
-          candidates << vec + perp
-          break if candidates.size >= max_points
-        end
+      grandchild_perp = P_perp_basis.map { |basis| grandchild_node.inner_product(Vector[*basis]) }
+
+      # 有効な次の手が一つでも見つかればOK
+      if (grandchild_perp.map { |x| x**2 }.sum) < window_radius_2pow
+        is_not_dead_end = true
+        break
       end
-      break if candidates.size >= max_points
     end
-    break if candidates.size >= max_points
+    # --- 「先読み」ここまで ---
+
+    # 行き止まりでなければ、この候補点を正式に採用
+    if is_not_dead_end
+      visited << neighbor_node
+      # キューの末尾に追加（FIFO）
+      queue.push(neighbor_node)
+    # else
+      # 行き止まりなら、次の候補点を探す。neighbor_nodeと同じ座標に、別の方向から侵入した場合には　行き止まりにならないかもしれないので、visitedに追加しない。
+    end
   end
-  break if candidates.size >= max_points
 end
+
+########################
+
+# (Min_a0..Max_a0).each do |a0|
+#   (Min_b0..Max_b0).each do |b0|
+#     begin
+#       a1_est, b1_est = estimate_a1_b1(a0, b0, c0, c1, d0, d1)
+#     rescue
+#       next
+#     end
+
+#     ((a1_est - window_radius).floor).upto((a1_est + window_radius).ceil) do |a1|
+#       ((b1_est - window_radius).floor).upto((b1_est + window_radius).ceil) do |b1|
+#         vec = [a0, a1, b0, b1]
+#         next if visited.include?(vec)
+#         visited << vec
+
+#         perp = P_perp_basis.map { |basis| vec.zip(basis).map { |a, b| a * b }.sum } # perp = [x, y] ← 任意の候補点
+#         if point_inside_polygon?(perp, boundary_polygon)   # ✅ 渦巻きの内側 → 採用
+#           candidates << vec + perp
+#           break if candidates.size >= max_points
+#         end
+#       end
+#       break if candidates.size >= max_points
+#     end
+#     break if candidates.size >= max_points
+#   end
+#   break if candidates.size >= max_points
+# end
+# 💾 生成された4D整数座標を 13776個、'generated_spectre_integer_coords3.csv' に保存中... ["spectre座標　探索時間", 0.2826513]
 
 # --- ステップ6: CSV保存 ---
 output_filename = "generated_spectre_integer_coords3.csv"
@@ -323,6 +588,7 @@ CSV.open(output_filename, 'w') do |csv|
   csv << ['a0', 'a1', 'b0', 'b1', 'perp_x', 'perp_y']
   candidates.each { |row| csv << row }
 end
+p ["spectre座標　探索時間", Time.now -  find_start_time]
 
 puts "✅ 保存完了！"
 
