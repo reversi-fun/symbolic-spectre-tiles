@@ -37,19 +37,45 @@ generator = SpectreTilingGenerator.new(strategy, EDGE_A, EDGE_B)
 color_strategy = MonoChromeStrategy.new
 
 # --- 2. タイリング生成の実行 ---
-puts "* タイリング生成を開始します (N=#{N_ITERATIONS}) by #{strategy.name} and #{color_strategy.name}..."
-generator.generate(N_ITERATIONS)
+puts "# タイリング生成を開始します (N=#{N_ITERATIONS}) by #{strategy.name} and #{color_strategy.name}..."
+puts "# set Edge Length scale: A=#{EDGE_A}, B=#{EDGE_B}"
+generator.generate(N_ITERATIONS) {|n, tiles|
+   if 'MetaTile' == tiles['Delta'].class.name
+    print("##  #{n} Iterationed transformations[\"Delta\"][[6, 5, 3, 0]]\n")
+      [6, 5, 3, 0].each do |i|
+        if tiles['Delta'] && tiles['Delta'].respond_to?(:transformations) && tiles['Delta'].transformations[i]
+          trsf1 = tiles['Delta'].transformations[i]
+          angle,scale_y = strategy.get_angle_from_transform(trsf1)
+          moveTo_str = strategy.point_to_symbolic_str(trsf1)
+          move_to_coords = strategy.point_to_svg_coords(trsf1)
+          coef = strategy.to_internal_coefficients(trsf1)
+          print("   transformations[#{i}] = { angle: #{angle}, scale_y: #{scale_y}, coef:#{coef}, coords: #{move_to_coords},\n\t\t expr: #{moveTo_str}\n")
+        else
+          p ["debug at generator.generate eachProc", n, i, tiles['Delta']]
+          raise "InvalidArgument at generator.generate eachProc"
+        end
+      end
+    end
+    print("##  #{n} Iterationed quad[\"Delta\"] point\n")
+    tiles['Delta'].quad.each_with_index do |quad1_point, i|
+      print("   quad[#{i}] = {coef: #{strategy.to_internal_coefficients(quad1_point)}, coords: #{strategy.point_to_svg_coords(quad1_point)},\n\t\texpr: #{strategy.point_to_symbolic_str(quad1_point)} }\n")
+    end
+  }
+
 root_tile = generator.root_tile
-puts "* タイル生成完了: #{Time.now - start_time}秒"
+puts "# タイル生成完了: #{Time.now - start_time}秒"
 #exit 0
 
 # --- 3. 描画領域とタイル数の計算 (第1パス) ---
 # メモリを節約するため、タイル情報を配列に保存せず、都度計算します。
 # このパスでは、全体の描画範囲と総タイル数を把握します。
-puts "* 描画領域とタイル数を計算中 (第1パス)..."
+puts "# 描画領域とタイル数を計算中 (第1パス)..."
 min_x, min_y = Float::INFINITY, Float::INFINITY
 max_x, max_y = -Float::INFINITY, -Float::INFINITY
 num_tiles = 0
+count_by_label = Hash.new(0)
+count_by_angle = Hash.new(0)
+count_by_angle_Gamma2 = Hash.new(0)
 
 root_tile.for_each_tile(strategy.identity_transform) do |transform, label, parent_info|
   coords = strategy.point_to_svg_coords(transform)
@@ -58,9 +84,18 @@ root_tile.for_each_tile(strategy.identity_transform) do |transform, label, paren
   max_x = [max_x, coords[0]].max
   max_y = [max_y, coords[1]].max
   num_tiles += 1
+  angle, _ = strategy.get_angle_from_transform(transform)
+  count_by_angle[angle] += 1
+  if label == 'Gamma2'
+    count_by_angle_Gamma2[angle] += 1
+  end
+  count_by_label[label] += 1
 end
 
-puts "* #{N_ITERATIONS}回の反復で #{num_tiles} 個のタイルを生成しました"
+puts "## #{N_ITERATIONS}回の反復で #{num_tiles} 個のタイルを生成しました"
+print(" each angle's tile count =\t#{count_by_angle}\n")
+print(" each label's tile count =\t#{count_by_label}\n")
+print(" each angle's Gamma2 tile count =\t#{count_by_angle_Gamma2}\n")
 
 margin = EDGE_A * 3 + EDGE_B * 3
 min_x -= margin; min_y -= margin
@@ -69,7 +104,7 @@ max_x += margin; max_y += margin
 # --- 4. SVGファイルの描画 (第2パス) ---
 # ファイル名にジオメトリ戦略とカラーリング戦略のクラス名を含める
 svg_filename = "spectre-#{strategy.name}_#{color_strategy.name}_Tile-#{EDGE_A.truncate(1)}-#{EDGE_B.truncate(1)}-#{N_ITERATIONS}-#{num_tiles}tiles.svg"
-puts "* SVGファイルを描画中 (第2パス): #{svg_filename}"
+puts "# SVGファイルを描画中 (第2パス): #{svg_filename}"
 svg_time = Time.now
 
 # 描画前にカラーリング戦略の状態をリセット
@@ -142,7 +177,7 @@ File.open(svg_filename, 'w') do |file|
   end
   file.puts '</svg>'
 end
-puts "* SVG描画完了: #{Time.now - svg_time}秒"
+puts "# SVG描画完了: #{Time.now - svg_time}秒"
 
 # --- 5. CSVファイルの出力 (第3パス) ---
 csv_filename = svg_filename + '.csv'
@@ -162,11 +197,11 @@ File.open(csv_filename, 'w', encoding: 'UTF-8') do |file|
     file.puts "\"#{label}\",\"#{strategy.point_to_symbolic_str(trsf)}\",#{angle},#{pos[0]},#{pos[1]}, #{strategy.to_internal_coefficients(trsf).join(', ')}"
   end
 end
-puts "* CSV出力完了: #{Time.now - csv_time}秒"
+puts "# CSV出力完了: #{Time.now - csv_time}秒"
 
 # spectre模様の全頂点のcsv出力
 csv_filename = svg_filename + '_full_vertex.csv'
-puts "* spectre模様の全頂点のCSVファイルを出力中 (第4パス): #{csv_filename}"
+puts "# spectre模様の全頂点のCSVファイルを出力中 (第4パス): #{csv_filename}"
 csv_time = Time.now
 scale_y = N_ITERATIONS.even? ? 1 : -1
 
@@ -188,4 +223,4 @@ File.open(csv_filename, 'w', encoding: 'UTF-8') do |file|
   end
 end
 
-puts "* 全処理時間: #{Time.now - start_time}秒"
+puts "# 全処理時間: #{Time.now - start_time}秒"

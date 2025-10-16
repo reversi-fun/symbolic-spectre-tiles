@@ -83,9 +83,10 @@ class SpectreTilingGenerator
   # タイリング生成のメインプロセス
   def generate(iterations, &eachProc)
     tiles = build_spectre_base
+    eachProc.call((0),tiles) if eachProc
     iterations.times do |i|
       tiles = build_supertiles(tiles)
-      eachProc.call(i,tiles) if eachProc
+      eachProc.call((i + 1),tiles) if eachProc
     end
     @root_tile = tiles['Delta'] # 最終的なルートタイルを設定
     return self
@@ -140,7 +141,7 @@ class SpectreTilingGenerator
     # transformations.map! { |trsf| @strategy.compose_transforms(@reflection, trsf) }
     transformations.map! { |trsf| @strategy.reflect_transform(trsf) }
 
-    # 新しいスーパータイルの頂点座標を計算します
+    # 新しいスーパータイルの頂点座標を、transformations[6, 5, 3, 0]から計算します
     super_quad = [
       @strategy.transform_point(transformations[6], quad[2]),
       @strategy.transform_point(transformations[5], quad[1]),

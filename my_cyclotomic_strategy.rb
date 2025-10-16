@@ -344,22 +344,68 @@ if __FILE__ == $0
   # 回転戦略インスタンス
   strategy = CyclotomicStrategy.new # スケール設定（任意）
   strategy.set_debug(false)
-  CyclotomicPoint.set_scale(1.0, 1.0) # 初期点（代数的座標）
-  point = CyclotomicPoint.new(1, 0, 0, 0) # スケール設定
-  spectre_points=strategy.define_spectre_points(1.0, 1.0)
+  Edge_a = 10 * Math.sqrt(3) # 20.0 / (Math.sqrt(3) + 1.0)
+  Edge_b = 10 * 1.0 # 20.0 - Edge_a
+  # CyclotomicPoint.set_scale(Edge_a, Edge_b) # スケール設定の効果を確認できる値を設定（ Edge_a > Edge_b !=1.0 && 片方だけをSqrt(3)の倍数 にする）
+  spectre_points=strategy.define_spectre_points(Edge_a, Edge_b)
+  puts "# CyclotomicPoint.set_scale(A:#{Edge_a}, B:#{Edge_b})"
   mystic_points=strategy.define_mystic_points(spectre_points)
   mystic_rotate30degree_points = mystic_points.map{|point| strategy.transform_point(strategy.rotation_transform(30), point)}
 
   # 図形のパス表示
-  puts "# spectre_points = ["
-  spectre_points.each_with_index{|point,i| p [i, strategy.to_internal_coefficients(point), strategy.point_to_svg_coords(point), strategy.point_to_symbolic_str(point) ]}
-  puts "]"
-  puts "# mystic_points = ["
-  mystic_points.each_with_index{|point,i| p  [i, strategy.to_internal_coefficients(point), strategy.point_to_svg_coords(point),  strategy.point_to_symbolic_str(point) ]}
-  puts "]"
-  puts "# mystic rotates 30 degree points = ["
-  mystic_rotate30degree_points.each_with_index{|point,i| p  [i, strategy.to_internal_coefficients(point), strategy.point_to_svg_coords(point),  strategy.point_to_symbolic_str(point) ]}
-  puts "]"
+  [
+    ["spectre points", spectre_points],
+    ["mystic points", mystic_points],
+    ["mystic rotate 30degrees points", mystic_rotate30degree_points]
+  ].each do |name, points|
+    min_x, min_y = Float::INFINITY, Float::INFINITY
+    max_x, max_y, max_d = -Float::INFINITY, -Float::INFINITY, -Float::INFINITY
+    min_x_index, min_y_index = [], []
+    max_x_index, max_y_index, max_d_index = [], [], []
+    puts "# #{name} = ["
+    points.each_with_index do |point,i|
+      p [i, strategy.to_internal_coefficients(point), coords = strategy.point_to_svg_coords(point), strategy.point_to_symbolic_str(point) ]
+      if min_x >= coords[0]
+        if min_x > coords[0]
+          min_x = coords[0]
+          min_x_index = []
+        end
+        min_x_index << i
+      end
+      if max_x <= coords[0]
+        if max_x < coords[0]
+          max_x = coords[0]
+          max_x_index = []
+        end
+        max_x_index << i
+      end
+      if min_y >= coords[1]
+        if min_y > coords[1]
+          min_y = coords[1]
+          min_y_index = []
+        end
+        min_y_index << i
+      end
+      if max_y <= coords[1]
+        if max_y < coords[1]
+          max_y = coords[1]
+          max_y_index = []
+        end
+        max_y_index << i
+      end
+      d = coords[0] * coords[0] + coords[1] * coords[1]
+      if max_d <= d
+        if max_d < d
+          max_d = d
+          max_d_index = []
+        end
+        max_d_index << i
+      end
+    end
+    puts "]"
+    puts "##  #{name} min_x=#{min_x} at index=#{min_x_index},\t min_y=#{min_y} at index=#{min_y_index}"
+    puts "##  #{name} max_x=#{max_x} at index=#{max_x_index},\t max_y=#{max_y} at index=#{max_y_index},\t max distance=#{max_d} at index=#{max_d_index}"
+  end
 
   # 初期点（代数的座標）
   [ spectre_points[1], mystic_points[1]].each do | point|
@@ -428,7 +474,7 @@ if __FILE__ == $0
             x = ((a_data.transpose * a_data).inverse * a_data.transpose * b_data).map{|e| e.to_i}
             # x = (b_data * ((a_data.transpose * a_data).inverse * a_data.transpose)).map{|e| e.to_i}
            ]
-        p ["a_data * x", a_data * x]
+        # p ["a_data * x", a_data * x]
         # p ["x * a_data", x * a_data]
       end
     end
@@ -438,10 +484,13 @@ if __FILE__ == $0
   relatived_point_coef_set = Set.new()
   edge1st_coef_set = Set.new()
   edge2st_coef_set = Set.new()
+  edge3st_coef_set = Set.new()
+  edge4st_coef_set = Set.new()
+  quads_coef_set = Set.new()
   count_of_relatived_point_coef = 0
   [spectre_points, mystic_rotate30degree_points].each_with_index do | points, i|
     [1, -1].each do |reflection_scale|
-      [0, 60, 120, 180, 240].each do |angle|
+      [0, 60, 120, 180, 240, 300].each do |angle|
         transform = strategy.rotation_transform(angle)
         transform = strategy.reflect_transform(transform) if reflection_scale == -1
         curBasePoints = points.map{|point| strategy.transform_point(transform, point)}
@@ -452,9 +501,23 @@ if __FILE__ == $0
           relatived_point_coef_set.add((relatived_point_coef + ([[:spectre, :mystic][i]])).inspect )
           edge1st_coef_set.add(rotated_points[1..1].map{|point| strategy.to_internal_coefficients(point - first_point)[0..3]}.inspect)
           edge2st_coef_set.add((rotated_points[1..2].map{|point| strategy.to_internal_coefficients(point - first_point)[0..3]}).inspect)
+          edge3st_coef_set.add((rotated_points[1..3].map{|point| strategy.to_internal_coefficients(point - first_point)[0..3]}).inspect)
+          edge4st_coef_set.add((rotated_points[1..4].map{|point| strategy.to_internal_coefficients(point - first_point)[0..3]}).inspect)
           # edge2st_coef_set.add((rotated_points[1..2].map{|point| strategy.to_internal_coefficients(point - first_point)[0..3] } + ([[:spectre, :mystic][i]])).inspect)
           # p [i, (reflection_scale == -1 ? "180-#{angle}" : angle), rotate_element, strategy.to_internal_coefficients(first_point), relatived_point_coef]
           count_of_relatived_point_coef += 1
+        end
+        curBasePoint_axis = strategy.to_internal_coefficients(curBasePoints[6])[4] # max_d_index
+        if curBasePoint_axis == :spectre || curBasePoint_axis == :zero_spectre_mystic
+          angls_scale = strategy.get_angle_from_transform(transform)
+          # quads_coef_set.add([3, 5, 7, 11].map { |idx| curBasePoints[idx] }.map{|point| strategy.to_internal_coefficients(point - curBasePoints[0])[0..3] + [[:spectre, :mystic][i]] + angls_scale}.inspect)
+          # quads_coef_set.add([6, 5, 3, 0].map { |idx| curBasePoints[idx] }.map{|point| strategy.to_internal_coefficients(point - curBasePoints[0])[0..3] + [[:spectre, :mystic][i]] + angls_scale}.inspect)
+          # quads_coef_set.add([1, 3, 7, 13].map { |idx| curBasePoints[idx] }.map{|point| strategy.to_internal_coefficients(point - curBasePoints[0])[0..3] + [[:spectre, :mystic][i]] + angls_scale}.inspect)
+          # quads_coef_set.add([1, 7, 11, 13].map { |idx| curBasePoints[idx] }.map{|point| strategy.to_internal_coefficients(point - curBasePoints[0])[0..3] + [[:spectre, :mystic][i]] + angls_scale}.inspect)
+          # quads_coef_set.add([2, 6, 9, 11].map { |idx| curBasePoints[idx] }.map{|point| strategy.to_internal_coefficients(point - curBasePoints[0])[0..3] + [[:spectre, :mystic][i]] + angls_scale}.inspect)
+          # quads_coef_set.add([0, 5, 6, 11].map { |idx| curBasePoints[idx] }.map{|point| strategy.to_internal_coefficients(point - curBasePoints[0])[0..3] + [[:spectre, :mystic][i]] + angls_scale}.inspect)
+          # quads_coef_set.add([2, 5, 9, 11].map { |idx| curBasePoints[idx] }.map{|point| strategy.to_internal_coefficients(point - curBasePoints[0])[0..3] + [[:spectre, :mystic][i]] + angls_scale}.inspect)
+          quads_coef_set.add([6, 7, 12, 2].map { |idx| curBasePoints[idx] }.map{|point| strategy.to_internal_coefficients(point - curBasePoints[0])[0..3] + [[:spectre, :mystic][i]] + angls_scale}.inspect)
         end
       end
     end
@@ -462,9 +525,9 @@ if __FILE__ == $0
 
   p ["count_of_relatived_point_coef", count_of_relatived_point_coef]
   p ["relatived_point_coef_set.size", relatived_point_coef_set.size]
-  relatived_point_coef_set.map(&:to_s).sort.each do |relatived_point_coef|
-    puts relatived_point_coef
-  end
+  # relatived_point_coef_set.map(&:to_s).sort.each do |relatived_point_coef|
+  #   puts relatived_point_coef
+  # end
   p ["count_of_relatived_point_coef", count_of_relatived_point_coef]
   p ["relatived_point_coef_set.size", relatived_point_coef_set.size]
   p ["edge1st_coef_set.size", edge1st_coef_set.size]
@@ -475,5 +538,16 @@ if __FILE__ == $0
   edge2st_coef_set.map(&:to_s).sort.each do |edge_coef|
     puts edge_coef
   end
-
+  p ["edge3st_coef_set.size", edge3st_coef_set.size]
+  # edge3st_coef_set.map(&:to_s).sort.each do |edge_coef|
+  #   puts edge_coef
+  # end
+  p ["edge4st_coef_set.size", edge4st_coef_set.size]
+  # edge4st_coef_set.map(&:to_s).sort.each do |edge_coef|
+  #   puts edge_coef
+  # end
+  p ["quads_coef_set.size", quads_coef_set.size]
+  quads_coef_set.map(&:to_s).sort.each do |edge_coef|
+    puts edge_coef
+  end
 end
