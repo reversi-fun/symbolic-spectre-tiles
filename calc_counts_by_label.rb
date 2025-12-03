@@ -282,3 +282,65 @@ end
 # Auxiliary sequence _total(n) = [1, 9, 71, 559, 4401, 34649, 272791, 2147679, 16908641, 133121449, 1048062951, 8251382159, 64962994321, 511452572409, 4026657584951]
 #                               a(n)=(a(1)-1)*a(n-1)-a(n-2) for n>2 with a(1)=9, a(2)=71.
 #                               See OEIS A057080  https://oeis.org/A057080
+
+# 総タイルの個数（_total）の数列
+# [1, 9, 71, 559, ...]
+TOTAL_TILE_COUNTS = [
+  1, 9, 71, 559, 4401, 34649, 272791, 2147679, 16908641,
+  133121449, 1048062951, 8251382159, 64962994321, 511452572409,
+  4026657584951
+].map(&:to_f) # 浮動小数点数に変換して比率計算に備える
+
+# 理論的なタイルの個数増加率 x = 4 + sqrt(15)
+# ユーザーの漸化式 A_n = 8*A_{n-1} - A_{n-2} の特性方程式 x^2 - 8x + 1 = 0 の最大根
+THEORETICAL_GROWTH_RATE = 4.0 + Math.sqrt(15.0)
+
+puts "--- Spectre タイル個数の漸近成長率検証 ---"
+puts "理論成長率 (4 + sqrt(15)) の近似値: #{'%.10f' % THEORETICAL_GROWTH_RATE}"
+puts "--------------------------------------------------------"
+puts "n | 総タイル数 (N_n) | N_n / N_{n-1} | 差分 | 誤差 (%)"
+puts "--------------------------------------------------------"
+
+# Iteration 1 から開始 (n=0 は初期値のため比率計算には使用しない)
+(1...TOTAL_TILE_COUNTS.length).each do |n|
+  n_current = TOTAL_TILE_COUNTS[n]
+  n_previous = TOTAL_TILE_COUNTS[n - 1]
+
+  # 比率を計算 (N_n / N_{n-1})
+  ratio = n_current / n_previous
+
+  # 理論値との差分
+  difference = ratio - THEORETICAL_GROWTH_RATE
+
+  # 理論値に対する誤差率
+  # 誤差率 = (|比率 - 理論値| / 理論値) * 100
+  error_percentage = (difference.abs / THEORETICAL_GROWTH_RATE) * 100
+
+  # 出力フォーマットの調整
+  output_line = [
+    n.to_s.rjust(2),
+    n_current.round.to_s.gsub(/(\d)(?=(\d{3})+(?!\d))/, '\1,'), # 3桁区切り
+    '%.10f' % ratio,
+    '%.10e' % difference, # 科学的表記で差分を表示
+    '%.6f' % error_percentage # 誤差を小数点以下6桁で表示
+  ]
+
+  puts output_line.join(" | ")
+end
+
+puts "--------------------------------------------------------"
+puts "結果:"
+puts "イテレーションが進むにつれて、N_n / N_{n-1} の比率は"
+puts "理論成長率 #{'%.10f' % THEORETICAL_GROWTH_RATE} に非常に速く収束しています。"
+puts "最終的な誤差は #{'%.6f' % (TOTAL_TILE_COUNTS.last / TOTAL_TILE_COUNTS[-2] - THEORETICAL_GROWTH_RATE).abs} (絶対値)です。"
+
+# 漸化式 $A_n = 8A_{n-1} - A_{n-2}$ の確認
+a14 = TOTAL_TILE_COUNTS[14]
+a13 = TOTAL_TILE_COUNTS[13]
+a12 = TOTAL_TILE_COUNTS[12]
+check_recurrence = 8 * a13 - a12
+
+puts "\n--- 漸化式 $A_n = 8A_{n-1} - A_{n-2}$ の確認 (n=14) ---"
+puts "計算された A_14: #{a14.round}"
+puts "漸化式による A_14: #{check_recurrence.round}"
+puts "一致: #{a14.round == check_recurrence.round}"
