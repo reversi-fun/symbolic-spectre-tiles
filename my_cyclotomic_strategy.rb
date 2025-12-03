@@ -507,17 +507,18 @@ if __FILE__ == $0
           # p [i, (reflection_scale == -1 ? "180-#{angle}" : angle), rotate_element, strategy.to_internal_coefficients(first_point), relatived_point_coef]
           count_of_relatived_point_coef += 1
         end
-        curBasePoint_axis = strategy.to_internal_coefficients(curBasePoints[6])[4] # max_d_index
-        if curBasePoint_axis == :spectre || curBasePoint_axis == :zero_spectre_mystic
+        curBasePoint_axis0 = strategy.to_internal_coefficients(curBasePoints[0])[4] # center or min distance
+        curBasePoint_axis6 = strategy.to_internal_coefficients(curBasePoints[6])[4] # max_d_index
+        if curBasePoint_axis6 == :spectre || curBasePoint_axis0 == :zero_spectre_mystic
           angls_scale = strategy.get_angle_from_transform(transform)
-          # quads_coef_set.add([3, 5, 7, 11].map { |idx| curBasePoints[idx] }.map{|point| strategy.to_internal_coefficients(point - curBasePoints[0])[0..3] + [[:spectre, :mystic][i]] + angls_scale}.inspect)
+          quads_coef_set.add([3, 5, 7, 11].map { |idx| curBasePoints[idx] }.map{|point| strategy.to_internal_coefficients(point - curBasePoints[0])[0..3] + [[:spectre, :mystic][i]] + angls_scale}.inspect)
           # quads_coef_set.add([6, 5, 3, 0].map { |idx| curBasePoints[idx] }.map{|point| strategy.to_internal_coefficients(point - curBasePoints[0])[0..3] + [[:spectre, :mystic][i]] + angls_scale}.inspect)
           # quads_coef_set.add([1, 3, 7, 13].map { |idx| curBasePoints[idx] }.map{|point| strategy.to_internal_coefficients(point - curBasePoints[0])[0..3] + [[:spectre, :mystic][i]] + angls_scale}.inspect)
           # quads_coef_set.add([1, 7, 11, 13].map { |idx| curBasePoints[idx] }.map{|point| strategy.to_internal_coefficients(point - curBasePoints[0])[0..3] + [[:spectre, :mystic][i]] + angls_scale}.inspect)
           # quads_coef_set.add([2, 6, 9, 11].map { |idx| curBasePoints[idx] }.map{|point| strategy.to_internal_coefficients(point - curBasePoints[0])[0..3] + [[:spectre, :mystic][i]] + angls_scale}.inspect)
           # quads_coef_set.add([0, 5, 6, 11].map { |idx| curBasePoints[idx] }.map{|point| strategy.to_internal_coefficients(point - curBasePoints[0])[0..3] + [[:spectre, :mystic][i]] + angls_scale}.inspect)
           # quads_coef_set.add([2, 5, 9, 11].map { |idx| curBasePoints[idx] }.map{|point| strategy.to_internal_coefficients(point - curBasePoints[0])[0..3] + [[:spectre, :mystic][i]] + angls_scale}.inspect)
-          quads_coef_set.add([6, 7, 12, 2].map { |idx| curBasePoints[idx] }.map{|point| strategy.to_internal_coefficients(point - curBasePoints[0])[0..3] + [[:spectre, :mystic][i]] + angls_scale}.inspect)
+          # quads_coef_set.add([6, 7, 12, 2].map { |idx| curBasePoints[idx] }.map{|point| strategy.to_internal_coefficients(point - curBasePoints[0])[0..3] + [[:spectre, :mystic][i]] + angls_scale}.inspect)
         end
       end
     end

@@ -13,7 +13,6 @@ require './my_floatCoef_strategy'
 N_ITERATIONS = 4
 EDGE_A = 20.0 / (Math.sqrt(3) + 2.0)
 EDGE_B = 20.0 - EDGE_A
-
 # --- 1. 戦略とジェネレータの初期化 ---
 start_time = Time.now
 
@@ -186,10 +185,10 @@ csv_time = Time.now
 
 # CSV出力
 File.open(csv_filename, 'w', encoding: 'UTF-8') do |file|
-  file.puts "\uFEFF" + "label,\"transform  {A:#{EDGE_A}, B:#{EDGE_B}}\",angle,transform[2].x,transform[2].y,pt0-coef:a0,a1,b0,b1"
+  file.puts "\uFEFF" + "label,\"transform  {A:#{EDGE_A}, B:#{EDGE_B}}\",angle,scale_y,transform[2].x,transform[2].y,pt0-coef:a0,a1,b0,b1,spectre_mystic"
   root_tile.for_each_tile(strategy.identity_transform) do |transform, label, parent_info|
     trsf = transform
-    angle, = strategy.get_angle_from_transform(trsf)
+    angle, effec_scale_y = strategy.get_angle_from_transform(trsf)
     pos = strategy.point_to_svg_coords(trsf)
     # trsf0 = strategy.point_to_svg_coords(trsf[0])
     # trsf1 = strategy.point_to_svg_coords(trsf[1])
@@ -207,17 +206,17 @@ scale_y = N_ITERATIONS.even? ? 1 : -1
 
 # CSV出力
 File.open(csv_filename, 'w', encoding: 'UTF-8') do |file|
-  file.puts "\uFEFF" + "shape#,vertex_index,label,angle,vertex_expression,x,y,pt0-coef:a0,a1,b0,b1"
+  file.puts "\uFEFF" + "shape#,label,vertex_index,angle,scale_y,\"vertex_expression\",x,y,pt0-coef:a0,a1,b0,b1,spectre_mystic"
   shape_index = 0
   root_tile.for_each_tile(strategy.identity_transform) do |transform, label, parent_info|
     trsf = scale_y == 1 ? transform : strategy.reflect_transform(transform)
-    angle, = strategy.get_angle_from_transform(trsf)
+    angle,effec_scale_y = strategy.get_angle_from_transform(trsf)
     shape_points = label != 'Gamma2' ? spectre_points : mystic_points
     shape_points.each_with_index do |originPoint,j|
-    point = strategy.transform_point(trsf, originPoint)
-    pos = strategy.point_to_svg_coords(point)
-    coef =strategy.to_internal_coefficients(point)
-    file.puts "#{shape_index},#{-1 - j},\"#{label}\",#{angle},\"#{strategy.point_to_symbolic_str(point)}\",#{pos[0]},#{pos[1]},#{coef.join(', ')}"
+      point = strategy.transform_point(trsf, originPoint)
+      pos = strategy.point_to_svg_coords(point)
+      coef =strategy.to_internal_coefficients(point)
+      file.puts "#{shape_index},\"-#{parent_info.map.with_index{|a,i| i.to_s + '.' + a}.join('-')}/#{label}\",#{-1 - j},#{angle},#{effec_scale_y},\"#{strategy.point_to_symbolic_str(point)}\",#{pos[0]},#{pos[1]},#{coef.join(', ')}"
     end
     shape_index += 1
   end
