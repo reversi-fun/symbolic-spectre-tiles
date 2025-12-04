@@ -1,74 +1,28 @@
+# my_spectre_coordinateAnalyzer3.rb
+
 #!/usr/bin/env ruby
-# -*- coding: utf-8 -*-
-# spectre_coordinateAnalyzer_debug_full_v8.rb
+# my_spectre_coordinateAnalyzer.rb
 
 require 'csv'
 require 'matrix'
 require 'set'
+# require 'convex_hull'
 
-# ====================================================================
-# I. ヘルパー関数群 (数学・共通処理)
-# ====================================================================
-
-# --- 分類キーの作成 ------------------------------------------------
-# 機能概要: データの label, angle, vertex_index から一意なキーを生成する。
-# Input: label (String), angle (String), vertex_index (String)
-# Returns: key (String)
-def create_key(label, angle, vertex_index)
-  match = label.match(/\.([^.\-]+?\/[^.\-]+?)$/)
-  last_words = match ? match[0] : label
-  "#{last_words}-#{angle}-#{vertex_index}"
-end
-
-# 機能概要: 詳細キーから vertex_index の部分を '*' に置換したキーを生成する。
-# Input: key (String) - 例: ".Lambda/Psi-300--1"
-# Returns: combined_key (String) - 例: ".Lambda/Psi-300-*"
-def create_combined_key(key)
-  # キーは通常 "{label}-{angle}-{vertex_index}" の形式。
-  # 最後のハイフンとそれ以降を置換する。
-  key.sub(/-\d+$/, '-*')
-end
-
-# --- 行列/ベクトル演算ヘルパー ----------------------------------------
-
-# 機能概要: データの平均ベクトルを算出する。
-# Input: data (Array<Array<Numeric>>) - 行ごとにデータ点を持つ配列。
-# Returns: mean_vector (Array<Numeric>)
+# --- ユーティリティ関数 ---
 def mean_vector(data)
   cols = data.transpose
-  cols.map { |col| col.sum / col.size.to_f }
+  cols.map { |col| col.sum / col.size }
 end
 
-# 機能概要: データから平均を引いて中心化する。
-# Input: data (Array<Array<Numeric>>)
-# Returns: centered_data (Array<Array<Numeric>>)
 def center_data(data)
   mean = mean_vector(data)
   data.map { |row| row.zip(mean).map { |x, m| x - m } }
 end
 
-# 機能概要: 2つのベクトル（Vectorオブジェクト）の外積行列を計算する。
-# Input: v1 (Vector), v2 (Vector)
-# Returns: outer_product_matrix (Matrix)
-def outer_product(v1, v2)
-  Matrix.rows(v1.to_a.map { |x| v2.to_a.map { |y| x * y } })
-end
-
-# 機能概要: 共分散行列を計算する。
-# Input: data (Array<Array<Numeric>>)
-# Returns: covariance_matrix (Matrix)
 def covariance_matrix(data)
   centered = center_data(data)
   m = Matrix[*centered]
   (m.transpose * m) / data.size.to_f
-end
-
-# 機能概要: データのRMSE (Root Mean Square Error) を計算する。
-# Input: vectors (Array<Array<Numeric>>) - 誤差ベクトルまたは残差ベクトルの配列
-# Returns: rmse_value (Float)
-def rmse(vectors)
-  return 0.0 if vectors.empty?
-  Math.sqrt(vectors.map { |v| v.map { |x| x**2 }.sum }.sum / vectors.size.to_f)
 end
 
 # --- PCA -----------------------------------------------------------
@@ -95,33 +49,84 @@ def pca_components(data, n_components = 2,key = "")
   return sorted.first(n_components).map { |_, vec| vec.to_a }
 end
 
-# --- 凸包 (Convex Hull) --------------------------------------------
+def normalize(v)
+  mag = Math.sqrt(v.map { |x| x**2 }.sum)
+  v.map { |x| x / mag }
+end
 
-# 機能概要: 2D点群の凸包を Andrew's Monotone Chain で計算する (点数 >= 3)。
-# Input: points (Array<Array<Float>>)
-# Returns: hull_points (Array<Array<Float>>) - 凸包を構成する点の配列
-def convex_hull_monotone_chain(points)
-  # 最小のx座標、次に最小のy座標でソート
+def orthogonalize(v1, v2)
+  dot = v1.zip(v2).map { |a, b| a * b }.sum
+  scale = dot / v1.map { |x| x**2 }.sum
+  v2.zip(v1).map { |b, a| b - scale * a }
+end
+
+def least_squares(x_data, y_data, max_iter = 3, tol = 1e-6, lambda = 1e-8)
+
+  x = Matrix[*x_data]
+  y = Vector[*y_data]
+  xt = x.transpose
+
+  beta = (xt * x).inverse * xt * y
+  beta.to_a
+
+  # identity = Matrix.identity(x.column_count)
+
+  # best_rmse = Float::INFINITY
+  # best_beta = nil
+
+  # max_iter.times do
+  #   begin
+  #     beta = (xt * x + lambda * identity).inverse * xt * y
+  #   rescue StandardError
+  #     lambda *= 10
+  #     next
+  #   end
+
+  #   # 推定値とRMSEを計算
+  #   y_pred = x.map { |row| row.zip(beta.to_a).map { |a, b| a * b }.sum }
+  #   error = y_pred.zip(y.to_a).map { |pred, actual| (pred - actual)**2 }
+  #   rmse_val = Math.sqrt(error.sum / error.size)
+
+  #   if rmse_val < best_rmse - tol
+  #     best_rmse = rmse_val
+  #     best_beta = beta
+  #   else
+  #     break
+  #   end
+
+  #   lambda *= 10
+  # end
+
+  # best_beta ? best_beta.to_a : Array.new(x.column_count, 0.0)
+end
+
+# Helper function for outer product
+def outer_product(v1, v2)
+  Matrix[*v1.to_a.map { |a| v2.to_a.map { |b| a * b } }]
+end
+
+def rmse(vectors)
+  Math.sqrt(vectors.map { |v| v.map { |x| x**2 }.sum }.sum / vectors.size)
+end
+
+# --- 渦巻き境界の抽出（凸包） ---
+def compute_convex_hull(points)
+  # points: [[x, y], [x, y], ...]
   points = points.sort_by { |x, y| [x, y] }
+  return points if points.size <= 1
 
-  # size <= 3 の場合の処理は compute_convex_hull に任せる
-
-  # 外積の符号を返すラムダ (0以下なら右回りまたは共線)
   cross = ->(o, a, b) {
     (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
   }
 
-  # 下側の包
   lower = []
   points.each do |p|
-    # 反時計回りになるように点をポップ
     while lower.size >= 2 && cross.call(lower[-2], lower[-1], p) <= 0
       lower.pop
     end
     lower << p
   end
 
-  # 上側の包
   upper = []
   points.reverse.each do |p|
     while upper.size >= 2 && cross.call(upper[-2], upper[-1], p) <= 0
@@ -130,308 +135,348 @@ def convex_hull_monotone_chain(points)
     upper << p
   end
 
-  # 上下を結合し、重複する最初と最後の点を除去
   (lower[0...-1] + upper[0...-1])
 end
 
-
-# 機能概要: 2D点群の凸包を計算する。要素数 0, 1, 2 の場合も対応。
-# Input: points (Array<Array<Float>>)
-# Returns: boundary_polygon (Array<Array<Float>>) - 0個以上の点の配列
-def compute_convex_hull(points)
-  # インターフェース整合性のため、0, 1, 2点のケースはそのまま返す
-  return points if points.size <= 2
-
-  hull = convex_hull_monotone_chain(points)
-  hull
+# --- 点が凸包の内側か判定（射影法） ---
+def point_inside_polygon?(point, polygon)
+  x, y = point
+  inside = false
+  j = polygon.size - 1
+  for i in 0...polygon.size
+    xi, yi = polygon[i]
+    xj, yj = polygon[j]
+    if ((yi > y) != (yj > y)) &&
+       (x < (xj - xi) * (y - yi) / (yj - yi + 1e-10) + xi)
+      inside = !inside
+    end
+    j = i
+  end
+  inside
 end
 
-# 機能概要: 点が2D多角形（凸包）の内部にあるかどうかを判定する。
-#           要素数 0, 1, 2, >=3 の全てに対応。単一の exit point を持つ。
-# Input: pt (Array<Float>), polygon (Array<Array<Float>>), tol (Float)
-# Returns: is_inside (Boolean)
-def point_inside_polygon?(pt, polygon, tol = 1e-6)
-  x, y = pt
-  result = false
+# --- a1, b1 の動的範囲計算（a0, b0 から連立不等式を解く） ---
+# 共通基底への射影が max_radius_sq 以下という制約から、
+# 与えられた a0, b0 に対して許容される a1, b1 の範囲を計算
+def calculate_a1_b1_ranges(a0, b0, common_basis, max_radius_sq)
+  # 共通基底ベクトル
+  basis1 = common_basis[0]  # [c0, c1, c2, c3]
+  basis2 = common_basis[1]  # [d0, d1, d2, d3]
 
-  if polygon.nil? || polygon.empty?
-    result = false
-  elsif polygon.size == 1
-    # --- 点同士比較 ---
-    point = polygon[0]
-    if point && point[0] && point[1]
-      result = (x - point[0]).abs < tol && (y - point[1]).abs < tol
-    else
-      result = false
-    end
-  elsif polygon.size == 2
-    # --- 線分上判定（距離と射影位置を考慮）---
-    # ... (線分上判定ロジックは前回修正済みのものが正しい) ...
-    if polygon[0] && polygon[1] && polygon[0][0] && polygon[0][1] && polygon[1][0] && polygon[1][1]
-      px, py = pt
-      x1, y1 = polygon[0]
-      x2, y2 = polygon[1]
+  # 許容誤差（射影の二乗和の平方根）
+  tolerance = Math.sqrt(max_radius_sq)
 
-      vx, vy = x2 - x1, y2 - y1
-      wx, wy = px - x1, py - y1
-      seg_len2 = vx * vx + vy * vy
+  # 連立不等式:
+  # (basis1[0]*a0 + basis1[1]*a1 + basis1[2]*b0 + basis1[3]*b1)^2 +
+  # (basis2[0]*a0 + basis2[1]*a1 + basis2[2]*b0 + basis2[3]*b1)^2 <= max_radius_sq
 
-      if seg_len2 < tol * tol
-        result = (x - x1).abs < tol && (y - y1).abs < tol
-      else
-        t = (vx * wx + vy * wy) / seg_len2
+  # a0, b0 が固定された時の定数項
+  const1 = basis1[0] * a0 + basis1[2] * b0
+  const2 = basis2[0] * a0 + basis2[2] * b0
 
-        if t > -tol && t < 1.0 + tol
-          projx = x1 + t * vx
-          projy = y1 + t * vy
-          dist2 = (px - projx)**2 + (py - projy)**2
-          result = dist2 <= tol * tol
-        else
-          result = false
-        end
-      end
-    else
-      result = false
-    end
-  else # polygon.size >= 3
+  # a1, b1 の係数
+  c1 = basis1[1]  # a1 の係数（第1基底）
+  c3 = basis1[3]  # b1 の係数（第1基底）
+  d1 = basis2[1]  # a1 の係数（第2基底）
+  d3 = basis2[3]  # b1 の係数（第2基底）
 
-    # 🚨 修正ロジックの追加: 最初に境界（辺上）判定を行う
-    j = polygon.size - 1
-    is_on_boundary = false
+  # 簡略化のため、各基底への射影を独立に扱う（保守的な推定）
+  # より厳密には楕円体の制約だが、ここでは矩形領域で近似
 
-    polygon.each_with_index do |point_i, i|
-      point_j = polygon[j]
+  # 第1基底からの制約: |const1 + c1*a1 + c3*b1| <= tolerance
+  # 第2基底からの制約: |const2 + d1*a1 + d3*b1| <= tolerance
 
-      # 座標値が有効かどうかのチェック
-      if point_i && point_j && point_i[0] && point_i[1] && point_j[0] && point_j[1]
-        x1, y1 = point_i
-        x2, y2 = point_j
+  # a1 の範囲（両方の制約を満たす範囲）
+  a1_ranges = []
 
-        # 点と線分の距離チェック（線分上判定ロジックを再利用）
-        vx, vy = x2 - x1, y2 - y1
-        wx, wy = x - x1, y - y1
-        seg_len2 = vx * vx + vy * vy
+  # 第1基底からの a1 範囲（b1 を考慮せず、保守的に）
+  if c1.abs > 1e-10
+    a1_range1_half = (tolerance - c3.abs * tolerance) / c1.abs
+    a1_center1 = -const1 / c1
+    a1_ranges << [a1_center1 - a1_range1_half, a1_center1 + a1_range1_half]
+  else
+    a1_ranges << [-Float::INFINITY, Float::INFINITY]
+  end
 
-        if seg_len2 < tol * tol # 辺が点の場合
-          if (x - x1).abs < tol && (y - y1).abs < tol
-            is_on_boundary = true
-            break
-          end
-        else
-          t = (vx * wx + vy * wy) / seg_len2
-          if t > -tol && t < 1.0 + tol # 射影点が線分内
-            projx = x1 + t * vx
-            projy = y1 + t * vy
-            dist2 = (x - projx)**2 + (y - projy)**2
-            if dist2 <= tol * tol
-              is_on_boundary = true
-              break
-            end
-          end
-        end
-      end # 座標値チェックの終端
-      j = i
-    end # 境界判定ループ終了
+  # 第2基底からの a1 範囲
+  if d1.abs > 1e-10
+    a1_range2_half = (tolerance - d3.abs * tolerance) / d1.abs
+    a1_center2 = -const2 / d1
+    a1_ranges << [a1_center2 - a1_range2_half, a1_center2 + a1_range2_half]
+  else
+    a1_ranges << [-Float::INFINITY, Float::INFINITY]
+  end
 
-    if is_on_boundary
-      result = true
-    else
-      # --- 多角形内判定（Ray Casting）---
-      inside = false
-      j = polygon.size - 1
+  # 両方の制約の共通部分
+  a1_min = a1_ranges.map { |r| r[0] }.max
+  a1_max = a1_ranges.map { |r| r[1] }.min
 
-      polygon.each_with_index do |point_i, i|
-        point_j = polygon[j]
+  # b1 の範囲（同様の計算）
+  b1_ranges = []
 
-        if point_i && point_j && point_i[0] && point_i[1] && point_j[0] && point_j[1]
-          xi, yi = point_i
-          xj, yj = point_j
+  if c3.abs > 1e-10
+    b1_range1_half = (tolerance - c1.abs * tolerance) / c3.abs
+    b1_center1 = -const1 / c3
+    b1_ranges << [b1_center1 - b1_range1_half, b1_center1 + b1_range1_half]
+  else
+    b1_ranges << [-Float::INFINITY, Float::INFINITY]
+  end
 
-          if ((yi > y) != (yj > y))
-            x_int = (xj - xi) * (y - yi) / (yj - yi + 1e-10) + xi
-            inside = !inside if x <= x_int + tol
-          end
-        end
-        j = i
-      end
-      result = inside
+  if d3.abs > 1e-10
+    b1_range2_half = (tolerance - d1.abs * tolerance) / d3.abs
+    b1_center2 = -const2 / d3
+    b1_ranges << [b1_center2 - b1_range2_half, b1_center2 + b1_range2_half]
+  else
+    b1_ranges << [-Float::INFINITY, Float::INFINITY]
+  end
+
+  b1_min = b1_ranges.map { |r| r[0] }.max
+  b1_max = b1_ranges.map { |r| r[1] }.min
+
+  # 安全のため、無限大の場合は入力データ範囲の2倍程度に制限
+  {
+    a1_min: a1_min.finite? ? a1_min : -100,
+    a1_max: a1_max.finite? ? a1_max : 100,
+    b1_min: b1_min.finite? ? b1_min : -100,
+    b1_max: b1_max.finite? ? b1_max : 100
+  }
+end
+
+# --- 4次元範囲チェック関数（固定境界・モニタリング用） ---
+def check_4d_range(shape)
+  shape.vertices.all? do |v|
+    a0, a1, b0, b1 = v.to_a
+    (Min_a0..Max_a0).include?(a0) &&
+    (Min_a1..Max_a1).include?(a1) &&
+    (Min_b0..Max_b0).include?(b0) &&
+    (Min_b1..Max_b1).include?(b1)
+  end
+end
+
+# --- 候補検証関数（分岐記録時の詳細チェック用） ---
+# 戻り値: { valid: true/false, reason: "理由", details: {...} }
+def validate_candidate_detailed(shape, common_basis, max_radius_sq, input_coords_set)
+  details = {
+    in_4d_range: false,
+    satisfies_pca_constraint: false,
+    not_in_input: false,
+    all_vertices_valid: true
+  }
+
+  # 1. 4次元範囲チェック
+  details[:in_4d_range] = check_4d_range(shape)
+  unless details[:in_4d_range]
+    return { valid: false, reason: "4D範囲外", details: details }
+  end
+
+  # 2. PCA制約（共通基底への射影）チェック
+  max_proj_sq = 0.0
+  shape.vertices.each do |v|
+    proj = common_basis.map { |b| v.inner_product(Vector[*b]) }
+    proj_sq = proj.map { |x| x**2 }.sum
+    max_proj_sq = [max_proj_sq, proj_sq].max
+  end
+  details[:satisfies_pca_constraint] = (max_proj_sq <= max_radius_sq)
+  details[:max_proj_sq] = max_proj_sq
+  details[:max_radius_sq] = max_radius_sq
+
+  unless details[:satisfies_pca_constraint]
+    return { valid: false, reason: "PCA制約違反", details: details }
+  end
+
+  # 3. 教師データに含まれていない座標かチェック
+  has_new_coords = shape.vertices.any? do |v|
+    !input_coords_set.include?(v.to_a)
+  end
+  details[:not_in_input] = has_new_coords
+
+  # すべてのチェックを通過
+  { valid: true, reason: "OK", details: details }
+end
+
+# --- ShapeInfo Class ---
+class ShapeInfo
+  attr_reader :vertices, :centroid, :angle, :scale
+  attr_accessor :invalid_connect_from
+
+  def initialize(vertices, angle, scale)
+    @vertices = vertices          # Array<Vector[a0, a1, b0, b1]>
+    @centroid = calculate_centroid(vertices)
+    @angle = angle                # Float
+    @scale = scale                # Float
+    @invalid_connect_from = []    # Array<Vector>
+  end
+
+  def calculate_centroid(vertices)
+    sum = Vector[0.0, 0.0, 0.0, 0.0]
+    vertices.each { |v| sum += v }
+    sum / vertices.size.to_f
+  end
+
+  def edges
+    Enumerator.new do |y|
+      @vertices.each_cons(2) { |v1, v2| y << [v1, v2] }
+      y << [@vertices.last, @vertices.first]
     end
   end
 
-  # 変更前と同様のデバッグ情報を出力
-  # p ["point_inside_polygon failed", pt, result, polygon] unless result
-
-  result # 単一の exit point
+  def group_key
+    "#{@angle.round(6)}-#{@scale.round(6)}"
+  end
 end
 
-# ====================================================================
-# II. 大域的PCA処理 (共通基底の計算)
-# ====================================================================
+# --- 渦巻き境界の抽出（凸包） ---
+# KNN検索のためのKD木の実装
+class KDTree
+  Node = Struct.new(:point, :left, :right, :axis)
 
-# 機能概要: 全データ群から大域的な共分散行列を計算し、共通基底（PC1, PC2）と平均を算出する。
-# Input: data_groups (Hash)
-# Returns: common_basis_and_mean (Array) - [common_basis (Array<Array<Float>>), global_mean (Vector)]
-def compute_common_basis_from_groups(data_groups)
-  total_n = 0
-  total_mean = Vector.zero(4)
-  total_cov_sum = Matrix.zero(4)
-
-  data_groups.each do |_, group|
-    coords = group.map { |g| Vector[*g[:coords]] }
-    n = coords.size
-    next if n < 2
-    mean_i = coords.reduce(Vector.zero(4), :+) / n.to_f
-
-    cov_i = Matrix.zero(4)
-    coords.each do |v|
-      dv = v - mean_i
-      cov_i += outer_product(dv, dv)
-    end
-    cov_i /= n.to_f
-
-    total_mean += mean_i * n
-    total_cov_sum += (cov_i + outer_product(mean_i, mean_i)) * n
-    total_n += n
+  def initialize(points)
+    @root = build_tree(points, 0)
   end
 
-  mean_global = total_mean / total_n.to_f
-  cov_global = (total_cov_sum / total_n.to_f) - outer_product(mean_global, mean_global)
-  eig = cov_global.eigen
-  vals = eig.eigenvalues
-  vecs = eig.eigenvectors.map(&:to_a)
+  def build_tree(points, depth)
+    return nil if points.empty?
 
-  sorted = vals.zip(vecs).sort_by { |v, _| v.abs }
+    axis = depth % 2 # 2次元なので axis は 0(x) か 1(y)
+    points.sort_by! { |p| p[axis] }
+    median = points.size / 2
 
-  puts "📊 共通基底 固有値: #{sorted.map { |v,_| format('%.3f', v) }.join(', ')}"
-  common_basis = sorted.first(2).map { |_, v| v }
+    Node.new(
+      points[median],
+      build_tree(points[0...median], depth + 1),
+      build_tree(points[median+1..-1], depth + 1),
+      axis
+    )
+  end
 
-  [common_basis, mean_global]
-end
+  def nearest_k(target, k)
+    best_nodes = [] # [distance_sq, point] のリスト
+    search_recursive(@root, target, k, best_nodes)
+    best_nodes.sort_by { |d, _| d }
+  end
 
-# 機能概要: 全データ群を共通基底に射影した際の最大半径（二乗）を算出する。
-# Input: data_groups (Hash), common_basis (Array<Array<Float>>)
-# Returns: max_radius_sq (Float)
-def compute_max_window_radius_sq(data_groups, common_basis)
-  max_r_sq = 0.0
-  data_groups.each_value do |group|
-    group.each do |g|
-      coords = g[:coords]
-      proj = common_basis.map { |b| coords.zip(b).map { |a, bb| a * bb }.sum }
-      r_sq = proj.map { |x| x**2 }.sum
-      max_r_sq = r_sq if r_sq > max_r_sq
+  private
+
+  def search_recursive(node, target, k, best_nodes)
+    return unless node
+
+    dist_sq = (node.point[0] - target[0])**2 + (node.point[1] - target[1])**2
+
+    # 候補リストに追加・更新
+    if best_nodes.size < k
+      best_nodes << [dist_sq, node.point]
+      best_nodes.sort_by! { |d, _| -d } # 距離の降順（末尾が最大距離）
+    elsif dist_sq < best_nodes.first[0]
+      best_nodes[0] = [dist_sq, node.point]
+      best_nodes.sort_by! { |d, _| -d }
+    end
+
+    axis = node.axis
+    diff = target[axis] - node.point[axis]
+
+    near_node = diff < 0 ? node.left : node.right
+    far_node = diff < 0 ? node.right : node.left
+
+    search_recursive(near_node, target, k, best_nodes)
+
+    # 反対側の枝を探索する必要があるか？
+    # 現在のk個目の候補よりも、分割軸までの距離が近ければ、反対側にもっと近い点があるかもしれない
+    if best_nodes.size < k || diff**2 < best_nodes.first[0]
+      search_recursive(far_node, target, k, best_nodes)
     end
   end
-  max_r_sq
 end
 
-# def compute_max_residual_radius_sq(data_groups, grouped_pca_results)
-#   max_r_sq = 0.0
+# KNNによる判定関数
+# k=5 程度の近傍点との平均距離が、閾値以下なら「有効」とみなす
+# 閾値は window_radius の何割か、あるいはデータ密度から自動推定する
+# ここでは window_radius (最大半径) ではなく、平均的な点間距離を基準にするのが良いが、
+# 簡易的に window_radius * 係数 で試す。
+KNN_K = 5
+def is_valid_point_knn?(point, kd_tree, knn_threshold)
+  neighbors = kd_tree.nearest_k(point, KNN_K)
+  return false if neighbors.size < KNN_K
 
-#   data_groups.each do |key, group|
-#     # 1. キー固有のPCA結果を取得
-#     res = grouped_pca_results[key]
+  # 平均距離
+  mean_dist = Math.sqrt(neighbors.map { |d, _| d }.sum / KNN_K)
+  mean_dist < knn_threshold
+end
 
-#     # PCA結果が存在しない、または基底が空（0点/1点かつ補完失敗）の場合はスキップ
-#     next unless res && !res[:basis].empty?
-
-#     # res[:basis] は、キー固有の PC3/PC4 基底 (残差空間)
-#     res_basis = res[:basis]
-
-#     # 2. そのグループ内の全データ点をチェック
-#     group.each do |g|
-#       coords = g[:coords]
-
-#       # PC3/PC4空間への射影 (残差) を計算
-#       # 射影は、座標ベクトルと基底ベクトルの内積の計算
-#       proj = res_basis.map do |b|
-#         coords.zip(b).map { |a, bb| a * bb }.sum
-#       end
-
-#       # 残差の二乗和 (r_sq) を計算
-#       r_sq = proj.map { |x| x**2 }.sum
-
-#       # 最大値を更新
-#       max_r_sq = r_sq if r_sq > max_r_sq
-#     end
-#   end
-
-#   max_r_sq
+# --- コマンドライン引数チェック ---
+# if ARGV.empty?
+#   puts "❗ ファイル名を指定してください: ruby spectre_coordinate_analyzer.rb input.csv"
+#   exit
 # end
 
+filename = ARGV[0] || 'spectre-Cyclotomic_MonoChrome_Tile-5.3-14.6-4-4401tiles.svg_full_vertex.csv'
 
-# ====================================================================
-# III. メイン処理 (データ読み込み、PCA、検証、探索)
-# ====================================================================
-
-# --- メイン実行ブロック ---
-
-# コマンドライン引数チェック
-if ARGV.empty?
-  puts "❗ ファイル名を指定してください: ruby spectre_coordinateAnalyzer_debug_full_v8.rb input.csv"
-end
-
-filename = ARGV[0] || "input.csv"
+# --- ステップ1: データ読み込み ---
 columns = ['pt0-coef:a0', 'a1', 'b0', 'b1']
-raw_header_names = nil
 
-# --- ステップ1: データ読み込みとグループ化 ---
-raw_data_all = CSV.read(filename, headers: true)
-if raw_data_all.headers.first.start_with?("\uFEFF")
-  raw_header_names = raw_data_all.headers.map { |h| h.start_with?("\uFEFF") ? h.delete("\uFEFF") : h }
-else
-  raw_header_names = raw_data_all.headers
+raw_data = CSV.read(filename, headers: true)
+data = raw_data.map { |row| columns.map { |col| row[col].to_f } }
+
+puts "✅ #{filename} \n\tデータ読み込み完了。形状: #{data.size}行 × #{columns.size}列"
+
+# --- ステップ1.5: 入力座標セットの構築 ---
+puts "\n📍 入力座標セットを構築中..."
+input_coords_set = Set.new
+input_coord_bounds = {
+  a0_min: Float::INFINITY, a0_max: -Float::INFINITY,
+  a1_min: Float::INFINITY, a1_max: -Float::INFINITY,
+  b0_min: Float::INFINITY, b0_max: -Float::INFINITY,
+  b1_min: Float::INFINITY, b1_max: -Float::INFINITY
+}
+
+raw_data.each do |row|
+  a0 = row['pt0-coef:a0'].to_f
+  a1 = row['a1'].to_f
+  b0 = row['b0'].to_f
+  b1 = row['b1'].to_f
+
+  # 座標をセットに追加（重複排除）
+  input_coords_set << [a0, a1, b0, b1]
+
+  # 境界値の更新
+  input_coord_bounds[:a0_min] = [input_coord_bounds[:a0_min], a0].min
+  input_coord_bounds[:a0_max] = [input_coord_bounds[:a0_max], a0].max
+  input_coord_bounds[:a1_min] = [input_coord_bounds[:a1_min], a1].min
+  input_coord_bounds[:a1_max] = [input_coord_bounds[:a1_max], a1].max
+  input_coord_bounds[:b0_min] = [input_coord_bounds[:b0_min], b0].min
+  input_coord_bounds[:b0_max] = [input_coord_bounds[:b0_max], b0].max
+  input_coord_bounds[:b1_min] = [input_coord_bounds[:b1_min], b1].min
+  input_coord_bounds[:b1_max] = [input_coord_bounds[:b1_max], b1].max
 end
 
-data_groups = Hash.new{|h,k| h[k] = [] }
-raw_data_all.each do |row|
-  label = row['label'] || row["\uFEFFlabel"]
-  angle = row['angle']
-  vertex_index = row['vertex_index']
-  next unless label && angle && vertex_index
+puts "✅ 入力座標セット構築完了: #{input_coords_set.size}個のユニークな座標"
+puts "📏 入力データの4次元境界:"
+puts "  a0: [#{input_coord_bounds[:a0_min].round(2)}, #{input_coord_bounds[:a0_max].round(2)}]"
+puts "  a1: [#{input_coord_bounds[:a1_min].round(2)}, #{input_coord_bounds[:a1_max].round(2)}]"
+puts "  b0: [#{input_coord_bounds[:b0_min].round(2)}, #{input_coord_bounds[:b0_max].round(2)}]"
+puts "  b1: [#{input_coord_bounds[:b1_min].round(2)}, #{input_coord_bounds[:b1_max].round(2)}]"
 
-  key = create_key(label, angle, vertex_index)
-  coords = columns.map { |col| row[col].to_f }
-  data_groups[key] << { raw_row: row, coords: coords }
+# --- ステップ1.6: データグループ化 (angle × scale) ---
+puts "\n📊 データをangle×scaleでグループ化中..."
+data_groups = Hash.new { |h, k| h[k] = [] }
+
+raw_data.each do |row|
+  coord = [row['pt0-coef:a0'].to_f, row['a1'].to_f, row['b0'].to_f, row['b1'].to_f]
+  angle = row['angle'].to_f
+  scale = row['scale_y'].to_f
+  group_key = "#{angle.round(6)}-#{scale.round(6)}"
+
+  data_groups[group_key] << { coords: coord, angle: angle, scale: scale }
 end
 
-puts "✅ #{raw_data_all.size}行, #{data_groups.size} グループのデータを読み込みました。"
-
-# size > 1 のグループと、size <= 1 のグループに分ける
-small_groups = data_groups.select { |_, group| group.size <= 1 }
-large_groups = data_groups.select { |_, group| group.size > 1 }
-
-if small_groups.empty?
-  puts "✅ 再統合対象の単一点クラスタはありませんでした。"
-else
-  # 統合先の新しいデータグループを準備
-  recombined_data_groups = large_groups # .dup # 既存の大きいグループはそのまま維持
-
-  # 再統合対象のキーとデータを処理
-  small_groups.each do |key, group|
-    # vertex_index を "*" に置換したキーを生成
-    combined_key = create_combined_key(key)
-
-    # 統合先のグループにデータを追加
-    # combined_key が large_groups に存在する場合、そのグループに結合されるが、そのようにならないように、keyを構成する。
-    # 存在しない場合、新しいグループとして作成される。
-    recombined_data_groups[combined_key] ||= []
-    recombined_data_groups[combined_key].concat(group)
-  end
-
-  # 再統合されたデータグループに上書き
-  data_groups = recombined_data_groups
-
-  # 統合後のグループサイズを確認
-  recombined_count = data_groups.size
-  recombined_small_count = data_groups.count { |_, group| group.size <= 1 }
-
-  puts "✅ 単一点クラスタの再統合が完了しました。"
-  puts "   -> 統合前グループ数: #{small_groups.size + large_groups.size}"
-  puts "   -> 統合後グループ数: #{recombined_count}"
-  puts "   -> 統合後も単一点のままのグループ数: #{recombined_small_count}"
+puts "✅ #{data_groups.size}個のグループに分類されました。"
+data_groups.each do |key, group|
+  puts "  グループ #{key}: #{group.size}点"
 end
 
+# --- ステップ2: PCA ---
+# --- ステップ2: PCA方式から係数と基底を導出 ---
 # --- ステップ2: キーごとにPCA分析を実行 ---
+puts "\n🔬 グループごとのPCA分析を実行中..."
 grouped_pca_results = Hash.new()
 data_groups.each do |key, group|
   coords_data = group.map { |g| g[:coords] }
@@ -453,7 +498,26 @@ data_groups.each do |key, group|
       rmse_val = rmse(proj_points)
       boundary = compute_convex_hull(proj_points)
 
-      grouped_pca_results[key] = { basis: use_basis, rmse: rmse_val, boundary: boundary }
+      # KD木の構築（このグループ専用）
+      kd_tree = KDTree.new(proj_points)
+
+      # KNN閾値の計算（このグループ専用）
+      sample_points = proj_points.sample([100, proj_points.size].min)
+      mean_neighbor_dists = sample_points.map do |p|
+        neighbors = kd_tree.nearest_k(p, KNN_K + 1)  # 自分自身を含む
+        neighbors.shift  # 自分自身を除く
+        Math.sqrt(neighbors.map { |d, _| d }.sum / KNN_K)
+      end
+      avg_density = mean_neighbor_dists.sum / mean_neighbor_dists.size
+      threshold = avg_density * 2.5
+
+      grouped_pca_results[key] = {
+        basis: use_basis,
+        rmse: rmse_val,
+        boundary: boundary,
+        kd_tree: kd_tree,
+        threshold: threshold
+      }
     rescue StandardError => e
       p ["debug at {grouped_pca_results-error}", key, e]
       next
@@ -461,293 +525,685 @@ data_groups.each do |key, group|
   end
 end
 
-# --- ステップ3: 共通基底と大域射影半径²を計算 ---
-common_basis, global_mean = compute_common_basis_from_groups(data_groups)
-max_window_radius_sq = compute_max_window_radius_sq(data_groups, common_basis)
-# max_window_radius_sq = 30 # compute_max_residual_radius_sq(data_groups, grouped_pca_results)
+puts "✅ #{grouped_pca_results.size}グループのPCA分析完了。"
 
-puts "🌐 共通基底による最大射影半径² = #{max_window_radius_sq}"
+# --- ステップ2.5: 共通基底の計算 ---
+puts "\n🌐 共通基底を計算中..."
 
-# --- ステップ4: 検証CSV出力 ---
-verification_csv = "key_restoration_verification-#{raw_data_all.size}.csv"
-puts "\n💾 検証CSVを出力中 → #{verification_csv}"
+total_n = 0
+total_mean = Vector[0.0, 0.0, 0.0, 0.0]
+total_cov_sum = Matrix.zero(4)
 
-verification_csv_lines = 0
-CSV.open(verification_csv, 'w') do |csv|
-  # ヘッダーに元のヘッダー名と検証情報を追加
-  csv << raw_header_names + %w[
-    claster proj_x proj_y inside_boundary rmse radius_sq inside_sq
-  ]
+data_groups.each_value do |coords_array|
+  n = coords_array.size
+  next if n < 2
 
-  data_groups.each do |key, group|
-    res = grouped_pca_results[key]
-    unless res
-      p ["debug at {verification_csv-data_groups}", key, res, group.size]
-      next
-    end
+  coords = coords_array.map { |c| Vector[*c[:coords]] }
+  mean_i = coords.reduce(Vector[0.0, 0.0, 0.0, 0.0], :+) / n.to_f
 
-    res_basis = res[:basis]
-    unless res_basis.size == 2 && res_basis.all? { |b| b.size == 4 }
-      p ["debug at {verification_csv-data_groups-basis}", key, res_basis]
-      next
-    end
-    boundary = res[:boundary]
-    rmse_val = res[:rmse]
+  cov_i = Matrix.zero(4)
+  coords.each do |v|
+    dv = v - mean_i
+    cov_i += outer_product(dv, dv)
+  end
+  cov_i /= n.to_f
 
-    # PC3/PC4の基底ベクトルの長さの二乗の合計を計算
-    radius_sq = res_basis.map { |b| b.map { |x| x**2 }.sum }.sum
+  total_mean += mean_i * n
+  total_cov_sum += (cov_i + outer_product(mean_i, mean_i)) * n
+  total_n += n
+end
 
-    group.each do |g|
-      coords = g[:coords]
-      if coords.size != 4 || coords.any?(&:nil?)
-        p ["debug at {verification_csv-data_groups-group}", key, coords]
-        next
-      end
-      row = g[:raw_row]
+mean_global = total_mean / total_n.to_f
+cov_global = (total_cov_sum / total_n.to_f) - outer_product(mean_global, mean_global)
 
-      # 各キー固有のPC3/PC4基底を使って射影
-      proj = res_basis.map { |b| coords.zip(b).map { |a,bb| a*bb }.sum }
-      inside = point_inside_polygon?(proj, boundary)
+eig = cov_global.eigen
+vals = eig.eigenvalues
+vecs = eig.eigenvectors.map(&:to_a)
 
-      # 元の row の値を fields で取得し、射影情報と連結
-      row_fields = row.fields
+# 小さい固有値の2つを選択
+sorted = vals.zip(vecs).sort_by { |v, _| v.abs }
+common_basis = sorted.first(2).map { |_, v| v }
 
-      csv << row_fields + [
-        key,
-        proj[0].round(6), proj[1].round(6),
-        inside,
-        rmse_val.round(6),
-        radius_sq.round(6), radius_sq <= max_window_radius_sq
-      ]
-      verification_csv_lines += 1
-    end
+# 99パーセンタイル閾値の計算
+all_radii_sq = []
+data_groups.each_value do |coords_array|
+  coords_array.each do |c|
+    coords = c[:coords]
+    proj = common_basis.map { |b| coords.zip(b).map { |a, bb| a * bb }.sum }
+    r_sq = proj.map { |x| x**2 }.sum
+    all_radii_sq << r_sq
   end
 end
+all_radii_sq.sort!
+max_radius_sq = all_radii_sq[all_radii_sq.size * 99 / 100]
 
-puts "✅ 検証CSV出力完了: #{verification_csv} #{verification_csv_lines}行 (#{raw_data_all.size - verification_csv_lines}行 不足)"
+puts "✅ 共通基底の計算完了。"
+puts "  固有値: #{sorted.map { |v, _| format('%.6f', v) }.join(', ')}"
+puts "  最大射影半径² (99%ile): #{max_radius_sq.round(6)}"
 
-# --- ステップ5: 4D格子探索 ---
-max_points=10000
-step_points=1000
-Start_node = Vector[0,0,0,0] # 1,-230,-201,81]
+# --- ステップ3: 14頂点パターンの抽出 ---
+puts "\n🧩 14頂点パターンの抽出を開始..."
 
-# 1次近傍ベクトル (隣接点)
-# edge1st_coef_set: 許容される隣接ベクトル (12種類)
-EDGE_1ST_VECTORS = [
-  [-1, 0, 0, 0], [-1, 1, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0],
-  [0, 0, -1, 1], [0, 0, 0, -1], [0, 0, 0, 1], [0, 0, 1, -1],
-  [0, 0, 1, 0], [0, 1, 0, 0], [1, -1, 0, 0], [1, 0, 0, 0]
-].map{|v|Vector[*v]}
+# 探索範囲定数（入力データの境界から自動計算）
+# 入力データを包含するように、各次元に余裕を持たせる
+margin_a0 = (input_coord_bounds[:a0_max] - input_coord_bounds[:a0_min]) * 0.1
+margin_a1 = (input_coord_bounds[:a1_max] - input_coord_bounds[:a1_min]) * 0.1
+margin_b0 = (input_coord_bounds[:b0_max] - input_coord_bounds[:b0_min]) * 0.1
+margin_b1 = (input_coord_bounds[:b1_max] - input_coord_bounds[:b1_min]) * 0.1
 
-# edge2st_coef_set: 許容される2ステップの経路 (60種類)
-# これを「前のステップ」から「次のステップ」への対応表に変換する
-LEGAL_NEXT_STEPS = Hash.new { |h, k| h[k] = [] }
-[
-[[-1, 0, 0, 0], [-1, -1, 0, 0]],
-[[-1, 0, 0, 0], [-1, 0, -1, 0]],
-[[-1, 0, 0, 0], [-1, 0, 1, 0]],
-[[-1, 0, 0, 0], [-2, 0, 0, 0]],
-[[-1, 0, 0, 0], [-2, 1, 0, 0]],
-[[-1, 1, 0, 0], [-1, 1, 0, -1]],
-[[-1, 1, 0, 0], [-1, 1, 0, 1]],
-[[-1, 1, 0, 0], [-1, 2, 0, 0]],
-[[-1, 1, 0, 0], [-2, 1, 0, 0]],
-[[-1, 1, 0, 0], [-2, 2, 0, 0]],
-[[0, -1, 0, 0], [-1, -1, 0, 0]],
-[[0, -1, 0, 0], [0, -1, -1, 1]],
-[[0, -1, 0, 0], [0, -1, 1, -1]],
-[[0, -1, 0, 0], [0, -2, 0, 0]],
-[[0, -1, 0, 0], [1, -2, 0, 0]],
-[[0, 0, -1, 0], [-1, 0, -1, 0]],
-[[0, 0, -1, 0], [0, 0, -1, -1]],
-[[0, 0, -1, 0], [0, 0, -2, 0]],
-[[0, 0, -1, 0], [0, 0, -2, 1]],
-[[0, 0, -1, 0], [1, 0, -1, 0]],
-[[0, 0, -1, 1], [0, -1, -1, 1]],
-[[0, 0, -1, 1], [0, 0, -1, 2]],
-[[0, 0, -1, 1], [0, 0, -2, 1]],
-[[0, 0, -1, 1], [0, 0, -2, 2]],
-[[0, 0, -1, 1], [0, 1, -1, 1]],
-[[0, 0, 0, -1], [-1, 1, 0, -1]],
-[[0, 0, 0, -1], [0, 0, -1, -1]],
-[[0, 0, 0, -1], [0, 0, 0, -2]],
-[[0, 0, 0, -1], [0, 0, 1, -2]],
-[[0, 0, 0, -1], [1, -1, 0, -1]],
-[[0, 0, 0, 1], [-1, 1, 0, 1]],
-[[0, 0, 0, 1], [0, 0, -1, 2]],
-[[0, 0, 0, 1], [0, 0, 0, 2]],
-[[0, 0, 0, 1], [0, 0, 1, 1]],
-[[0, 0, 0, 1], [1, -1, 0, 1]],
-[[0, 0, 1, -1], [0, -1, 1, -1]],
-[[0, 0, 1, -1], [0, 0, 1, -2]],
-[[0, 0, 1, -1], [0, 0, 2, -1]],
-[[0, 0, 1, -1], [0, 0, 2, -2]],
-[[0, 0, 1, -1], [0, 1, 1, -1]],
-[[0, 0, 1, 0], [-1, 0, 1, 0]],
-[[0, 0, 1, 0], [0, 0, 1, 1]],
-[[0, 0, 1, 0], [0, 0, 2, -1]],
-[[0, 0, 1, 0], [0, 0, 2, 0]],
-[[0, 0, 1, 0], [1, 0, 1, 0]],
-[[0, 1, 0, 0], [-1, 2, 0, 0]],
-[[0, 1, 0, 0], [0, 1, -1, 1]],
-[[0, 1, 0, 0], [0, 1, 1, -1]],
-[[0, 1, 0, 0], [0, 2, 0, 0]],
-[[0, 1, 0, 0], [1, 1, 0, 0]],
-[[1, -1, 0, 0], [1, -1, 0, -1]],
-[[1, -1, 0, 0], [1, -1, 0, 1]],
-[[1, -1, 0, 0], [1, -2, 0, 0]],
-[[1, -1, 0, 0], [2, -1, 0, 0]],
-[[1, -1, 0, 0], [2, -2, 0, 0]],
-[[1, 0, 0, 0], [1, 0, -1, 0]],
-[[1, 0, 0, 0], [1, 0, 1, 0]],
-[[1, 0, 0, 0], [1, 1, 0, 0]],
-[[1, 0, 0, 0], [2, -1, 0, 0]],
-[[1, 0, 0, 0], [2, 0, 0, 0]]
-].each do |path|
-  # path = [vec_to_1st, vec_to_2nd]
-  # vec_to_2nd = vec_to_1st + next_step なので、
-  # next_step = vec_to_2nd - vec_to_1st
-  vec_to_1st = Vector[*path[0]]
-  vec_to_2nd = Vector[*path[1]]
-  next_step = vec_to_2nd - vec_to_1st
+relative_range_a0 = [
+  input_coord_bounds[:a0_min] - margin_a0,
+  input_coord_bounds[:a0_max] + margin_a0
+]
+relative_range_b0 = [
+  input_coord_bounds[:b0_min] - margin_b0,
+  input_coord_bounds[:b0_max] + margin_b0
+]
 
-  # 「-vec_to_1st」という方向から来た場合、「next_step」に進める、というルール
-  LEGAL_NEXT_STEPS[-vec_to_1st] << next_step
+puts "📏 探索範囲（入力データ境界+10%マージン）:"
+puts "  a0: [#{relative_range_a0[0].round(2)}, #{relative_range_a0[1].round(2)}]"
+puts "  b0: [#{relative_range_b0[0].round(2)}, #{relative_range_b0[1].round(2)}]"
+
+find_start_time = Time.now
+
+# max_pointsを入力データの点数の2倍に自動設定
+max_points = input_coords_set.size * 2
+puts "\n🎯 探索目標: #{max_points}点 (入力データ #{input_coords_set.size}点 × 2)"
+
+# カバレッジ目標
+target_coverage = 0.95  # 95%のカバレッジを目標
+puts "📊 カバレッジ目標: #{(target_coverage * 100).round(1)}%"
+
+# shape# ごとに vertex_index -1 ～ -14 の行をグループ化
+rows_by_shape = Hash.new { |h, k| h[k] = [] }
+
+raw_data.each do |row|
+  # BOM対策: shape# カラム名が \uFEFFshape# になっている可能性がある
+  shape_id = row['shape#'] || row["\uFEFFshape#"]
+  if shape_id.nil?
+    # ヘッダーが見つからない場合のデバッグ
+    puts "⚠️ Row #{row.inspect} has no shape# key. Keys: #{row.headers}" if rows_by_shape.empty?
+    next
+  end
+  v_idx = row['vertex_index'].to_i
+  next unless (-14..-1).include?(v_idx)
+
+  # 座標 (a0, a1, b0, b1) + angle/scale
+  coord = [row['pt0-coef:a0'].to_f, row['a1'].to_f, row['b0'].to_f, row['b1'].to_f]
+  angle = row['angle'].to_f
+  scale = row['scale_y'].to_f
+  rows_by_shape[shape_id] << { idx: v_idx, coord: coord, angle: angle, scale: scale }
 end
 
-puts "\nジオメトリルールを構築完了。 LEGAL_NEXT_STEPSのキー数: #{LEGAL_NEXT_STEPS.size}"
+VALID_SPECTRE_PATTERNS = []
 
-# --- ステップ5: 幾何学的先読みとPCAフィルタリングによる探索 ---
+rows_by_shape.each do |shape_id, rows|
+  # -1 から -14 まで揃っているか確認
+  indices = rows.map { |r| r[:idx] }.sort.reverse
+  if indices != (-14..-1).to_a.reverse
+    # 欠落がある場合はスキップ
+    next
+  end
 
-# --- デバッグカウンターの初期化 ---
-$hull_checks = 0
-$lookahead_success = 0 # 先読みチェックで通過した回数
-$lookahead_fail = 0    # 先読みチェックで排除された回
-$multi_match_count = 0
-$total_matches_checked = 0
+  original_points = (-14..-1).to_a.reverse.map{|idx| rows.find { |r| r[:idx] == idx }[:coord]}
 
-candidates_count = 0
-output_csv_filename = "generated_spectre_integer_coords_keyed.csv"
+  # 最初の行からangle/scaleを取得
+  first_row = rows.find { |r| r[:idx] == -1 }
+  angle = first_row[:angle]
+  scale = first_row[:scale]
+  group_key = "#{angle.round(6)}-#{scale.round(6)}"
 
-puts "\n🔍 幾何学的先読み探索を開始、結果をファイルに逐次出力中 → #{output_csv_filename}"
+  base_vector = Vector[*original_points[0]]
+  pattern = original_points.map{|p| Vector[*p] - base_vector}
 
-visited = Set[Start_node]
-CSV.open(output_csv_filename, "w") do |csv|
-  # ヘッダーは、ノード座標(4D)と共通基底への射影(2D)とキー
-  csv << ['a0', 'a1', 'b0', 'b1', 'key','perp_x', 'perp_y', 'perp_sq','perp_x_common', 'perp_y_common']
+  VALID_SPECTRE_PATTERNS << {
+    pattern: pattern,
+    angle: angle,
+    scale: scale,
+    group_key: group_key
+  }
+end
 
-  # キューには座標のみを保持（先読みロジックでは親ノード情報は不要）
-  queue = [Start_node]
+# 重複排除（相対座標とgroup_keyのセットとして同じなら1つにまとめる）
+VALID_SPECTRE_PATTERNS.uniq! { |p| [p[:pattern].map(&:to_a), p[:group_key]] }
 
-  while !queue.empty? && candidates_count < max_points
-    # キューの先頭からFIFOで取り出す
-    current_node = queue.shift
+puts "✅ 抽出されたユニークなSpectreパターン数: #{VALID_SPECTRE_PATTERNS.size}"
+if VALID_SPECTRE_PATTERNS.size < 24
+  puts "⚠️ 警告: 全24パターン（12回転×2裏表）が揃っていません。存在するパターンのみで探索します。"
+end
 
-    # ===============================================
-    # A. 現在ノードの統計的有効性の確認（採用処理）
-    # ===============================================
+# パターンの表示
+VALID_SPECTRE_PATTERNS.each_with_index do |pat, i|
+  puts "Pattern #{i+1}: #{pat.map(&:to_a).inspect}"
+end
 
-    # 1. 大域的なPC3/PC4残差チェック (PC3/PC4基底への射影)
-    perp = common_basis.map { |b| current_node.inner_product(Vector[*b]) }
-    perp_sq = perp.map { |x| x**2 }.sum
 
-    # 🚨 大域残差フィルタリング: キュー追加時に既にチェックされているはずだが、
-    #    念のためチェック (探索開始ノードのための初期チェックとしても機能)
-    next if perp_sq > max_window_radius_sq
 
-    # 2. 局所的な凸包判定とキー復元
-    matched_info = []
-    grouped_pca_results.each do |key, res|
-      $hull_checks += 1
+# --- ステップ5: 幾何学的・優先度付き探索 ---
+# puts "\n💡 幾何学的ルールを適用した優先度付き探索を開始します..."
 
-      proj = res[:basis].map { |b| current_node.inner_product(Vector[*b]) }
-      proj_sq = proj.map { |x| x**2 }.sum
+# candidates = []
+# generated_integer_coords = []
 
-      if (proj_sq < (res[:rmse] * 2)**2) && point_inside_polygon?(proj, res[:boundary])
-        matched_info << [key, proj, proj.map { |x| x**2 }.sum]
+# Start_node = Vector[0, 0, 0, 0]
+# # 優先度付きキューとして、常にソート済みの配列を維持する
+# # キューの要素: [優先度, 現在座標(Vector), 親座標(Vector) | nil]
+# priority_queue = [[0.0, Start_node, nil]]
+# visited = Set[Start_node]
+
+# while !priority_queue.empty? && candidates.size < max_points
+#   # 最も優先度の低い（＝有望な）ノードを取り出す
+#   priority, current_node, parent_node = priority_queue.shift
+
+#   # --- 採用処理 ---
+#   # 窓の内側のチェックは不要（キュー追加時に済んでいるため）
+#   candidates << current_node.to_a + ( P_perp_basis.map { |basis| current_node.inner_product(Vector[*basis]) })
+#   generated_integer_coords << current_node.to_a
+
+#   if candidates.size % 5000 == 0
+#     puts "   ... #{candidates.size} 個の頂点を生成済み。キューのサイズ: #{priority_queue.size}"
+#   end
+
+#   # --- 次の候補点を、文脈に応じて絞り込む ---
+#   prev_step = parent_node ? current_node - parent_node : nil
+
+#   next_possible_steps = if prev_step.nil?
+#     EDGE_1ST_VECTORS # 始点からは12方向全て
+#   else
+#     LEGAL_NEXT_STEPS[prev_step] || [] # ルールにない場合は空配列
+#   end
+
+#   next_possible_steps.each do |step_vec|
+#     neighbor_node = current_node + step_vec
+
+#     # 訪問済みチェックと範囲チェック
+#     next if visited.include?(neighbor_node)
+#     next unless (Min_a0..Max_a0).include?(neighbor_node[0]) && (Min_b0..Max_b0).include?(neighbor_node[2])
+
+#     visited << neighbor_node
+
+#     perp = P_perp_basis.map { |basis| neighbor_node.inner_product(Vector[*basis]) }
+#     neighbor_priority = Math.sqrt(perp.map { |x| x**2 }.sum)
+#     if neighbor_priority < window_radius &&
+#       point_inside_polygon?(perp, boundary_polygon)   # ✅ 渦巻きの内側 → 採用
+#       priority_queue << [neighbor_priority, neighbor_node, current_node]
+#     end
+#   end
+# end
+# 💾 生成された4D整数座標を 13526個、'generated_spectre_integer_coords3.csv' に保存中... ["spectre座標　探索時間", 0.5301304]
+
+# --- ステップ5: FIFOキューと先読みによる探索 ---
+puts "\n💡 FIFOキューと14ステップ形状チェックによる探索を開始します..."
+
+# パフォーマンス・トレース用変数
+$perf_stats = {
+  check_count: 0,
+  prune_counts: Hash.new(0), # 何手目で枝刈りされたか
+  valid_tile_found: 0,
+  duplicates_found: 0
+}
+
+# --- 3段階検証関数 ---
+
+# 共通基底検証（大域フィルタリング - 最優先）
+# 理由: 最も高速で、大部分の無効な候補を排除できる
+def validate_with_common_basis(shape, common_basis, max_radius_sq, debug_stats)
+  debug_stats[:common_basis_checks] += 1
+
+  shape.vertices.each do |v|
+    proj = common_basis.map { |b| v.inner_product(Vector[*b]) }
+    proj_sq = proj.map { |x| x**2 }.sum
+
+    if proj_sq > max_radius_sq
+      debug_stats[:common_basis_rejected] += 1
+      return false
+    end
+  end
+
+  true
+end
+
+# PCA検証（グループ固有の凸包境界）
+def validate_with_group_pca(shape, pca_result, debug_stats)
+  if pca_result.nil?
+    STDERR.puts "⚠️ 警告: グループ #{shape.group_key} が存在しません"
+    debug_stats[:missing_groups] ||= Set.new
+    debug_stats[:missing_groups] << shape.group_key
+    return true  # グループが存在しない場合はスキップ
+  end
+
+  debug_stats[:pca_checks] += 1
+
+  # 全14頂点を検証
+  shape.vertices.each do |v|
+    # グループ固有の基底への射影
+    proj = pca_result[:basis].map { |b| v.inner_product(Vector[*b]) }
+    proj_sq = proj.map { |x| x**2 }.sum
+
+    # RMSE閾値チェック
+    if proj_sq > (pca_result[:rmse] * 2)**2
+      debug_stats[:pca_rejected] += 1
+      return false
+    end
+
+    # 凸包境界チェック
+    unless point_inside_polygon?(proj, pca_result[:boundary])
+      debug_stats[:pca_rejected] += 1
+      return false
+    end
+  end
+
+  true
+end
+
+# KNN検証（密度チェック - グループ固有のKD木と閾値を使用）
+def validate_with_knn(shape, pca_result, debug_stats)
+  return true if pca_result.nil?  # グループが存在しない場合はスキップ
+
+  debug_stats[:knn_checks] += 1
+
+  kd_tree = pca_result[:kd_tree]
+  threshold = pca_result[:threshold]
+
+  shape.vertices.each do |v|
+    # グループ固有の基底への射影（PCA検証と同じ空間）
+    pt_perp = pca_result[:basis].map { |b| v.inner_product(Vector[*b]) }
+
+    unless is_valid_point_knn?(pt_perp, kd_tree, threshold)
+      debug_stats[:knn_rejected] += 1
+      return false
+    end
+  end
+
+  true
+end
+
+# 14ステップ整合性チェック関数 (Shape-based with 3-stage validation)
+# current_shape_info: 現在のShapeInfoオブジェクト
+# 戻り値: [new_shape_infos] (新しく見つかったShapeInfoのリスト)
+def find_valid_tile_configuration(current_shape_info, visited, grouped_pca_results, common_basis, max_radius_sq, debug_stats, input_coords_set)
+  new_shapes = []
+
+  current_shape_info.edges.each do |v1, v2|
+    edge_vec = v2 - v1
+    # このエッジに対して見つかった新規候補
+    candidates_for_edge = []
+
+    # VALID_SPECTRE_PATTERNS の中から、このエッジにマッチするものを探す
+    VALID_SPECTRE_PATTERNS.each do |pattern_info|
+      pattern = pattern_info[:pattern]
+      angle = pattern_info[:angle]
+      scale = pattern_info[:scale]
+      group_key = pattern_info[:group_key]
+
+      14.times do |i|
+        p_start = pattern[i]
+        p_end = pattern[(i + 1) % 14]
+        p_vec = p_start - p_end
+
+        next unless p_vec == edge_vec
+
+        # 配置のためのオフセット計算
+        offset = v2 - p_start
+
+        # 候補形状の頂点を計算
+        candidate_points = pattern.map { |v| v + offset }
+        candidate_shape = ShapeInfo.new(candidate_points, angle, scale)
+
+        # 訪問済みチェック
+        next if visited.include?(candidate_shape.centroid)
+
+        # 範囲チェック（4次元固定境界・モニタリング用）
+        in_range = check_4d_range(candidate_shape)
+        next unless in_range
+
+        # ========== ハイブリッド検証（効率的な順序） ==========
+
+        # 1. 共通基底検証（最も高速、大域フィルタリング）
+        next unless validate_with_common_basis(candidate_shape, common_basis, max_radius_sq, debug_stats)
+
+        # 2. PCA検証（グループ固有、凸包境界）
+        pca_result = grouped_pca_results[group_key]
+        next unless validate_with_group_pca(candidate_shape, pca_result, debug_stats)
+
+        # 3. KNN検証（最も時間がかかる、密度チェック）
+        next unless validate_with_knn(candidate_shape, pca_result, debug_stats)
+
+        # 全検証通過
+        debug_stats[:all_checks_passed] += 1
+        candidates_for_edge << candidate_shape
       end
     end
 
-    if !matched_info.empty?
-      # 採用: RMSE最小のキーを選択 (キー矛盾解消ロジック)
-      best_info = matched_info.min_by { |m| m[2] }
+    # 分岐記録: 1つのエッジに対して2つ以上の新規候補が見つかったら記録
+    if candidates_for_edge.uniq { |s| s.centroid }.size >= 2
+      debug_stats[:branch_detected] += 1
+      puts "⚠️ 分岐検出: エッジ #{v1} -> #{v2} に対して #{candidates_for_edge.size} 個の新規候補が見つかりました。"
 
-      # 🚨 逐次CSV出力とカウント
-      csv << current_node.to_a + [best_info[0]] + best_info[1] + [best_info[2]]  + perp
-      candidates_count += 1
-      # 🚨 DEBUG: ノードが属した凸包の数をカウント
-      $multi_match_count += 1 if matched_info.size > 1
-      $total_matches_checked += matched_info.size # 一致した凸包の総数
-    end
+      # 詳細検証を行い、無効な候補を除外
+      valid_candidates = []
+      candidates_for_edge.each do |s|
+        validation = validate_candidate_detailed(s, common_basis, max_radius_sq, input_coords_set)
 
-    # ===============================================
-    # B. 隣接ノードの生成とフィルタリング（先読み適用）
-    # ===============================================
-
-    # 次の候補を、履歴に依存せず常に12方向から探す
-    EDGE_1ST_VECTORS.each do |step_vec|
-      neighbor_node = current_node + step_vec
-
-      # 訪問済みチェック
-      next if visited.include?(neighbor_node)
-
-      # 1. 候補点の統計的有効性チェック (大域残差)
-      neighbor_perp = common_basis.map { |b| neighbor_node.inner_product(Vector[*b]) }
-      neighbor_perp_sq = neighbor_perp.map { |x| x**2 }.sum
-
-      # 大域残差でオーバーしたら、先読みもせずにスキップ
-      if neighbor_perp_sq > max_window_radius_sq
-        # 🚨 修正点: フィルタリングで排除されたノードは visited に追加しない 🚨
-        # visited << neighbor_node # フィルタリングで排除されたノードも visited に追加
-        next
-      end
-
-      # 2. 「先読み」ロジックの適用 (幾何学的制約)
-      is_not_dead_end = false
-
-      # この候補手（neighbor_node）から、さらに次に行ける手を探す
-      grandchild_possible_steps = LEGAL_NEXT_STEPS[step_vec] || []
-
-      grandchild_possible_steps.each do |grandchild_step_vec|
-        grandchild_node = neighbor_node + grandchild_step_vec
-
-        # 孫ノードの有効性チェック（大域残差のみ）
-        grandchild_perp = common_basis.map { |b| grandchild_node.inner_product(Vector[*b]) }
-        grandchild_perp_sq = grandchild_perp.map { |x| x**2 }.sum
-
-        # 統計的制約を通過すればOK
-        if grandchild_perp_sq <= max_window_radius_sq
-          is_not_dead_end = true
-          break
+        if validation[:valid]
+          valid_candidates << s
+          s.invalid_connect_from << current_shape_info.centroid
+        else
+          puts "   ❌ 候補除外: #{validation[:reason]} (詳細: #{validation[:details]})"
         end
       end
 
-      # 3. 最終的なキューへの追加
-      if is_not_dead_end
-        $lookahead_success += 1
-        visited << neighbor_node
-        queue.push(neighbor_node)
-      else
-        $lookahead_fail += 1
-        # 行き止まりの場合、visited には追加しない。
-        # (visitedに追加しないことで、他の有効な経路から到達する可能性を残す)
-      end
+      # 有効な候補のみを残す
+      candidates_for_edge = valid_candidates
+      puts "   ➡️ 有効な候補数: #{candidates_for_edge.size}"
     end
 
-    # step_points 点ごとに出力を表示
-    puts "  -> #{candidates_count} nodes, Queue size: #{queue.size}" if candidates_count % step_points == 0
+    new_shapes.concat(candidates_for_edge)
+  end
+
+  new_shapes
+end
+
+# --- メイン探索ループ ---
+
+# 初期化
+# 初期化: CSVからShape#0～Shape#9を読み込む
+initial_shapes = []
+(0..9).each do |id|
+  rows = rows_by_shape[id.to_s]
+  if rows.empty?
+    puts "⚠️ Shape##{id} not found in CSV."
+    next
+  end
+  # vertex_index -14..-1 の順にソートして座標を取得
+  sorted_rows = rows.sort_by { |r| -r[:idx] } # -1, -2, ..., -14 の順?
+  # ShapeInfoは頂点順序に依存するため、CSVのvertex_indexの順序(-1, -2, ...)に従うか、
+  # VALID_SPECTRE_PATTERNSの抽出ロジック(-14..-1のreverse => -1, -2...)に合わせる必要がある。
+  # ここでは vertex_index の降順 (-1, -2, ..., -14) で取得する (VALID_SPECTRE_PATTERNSと同じ)
+
+  vertices = (-14..-1).to_a.reverse.map do |idx|
+    row = rows.find { |r| r[:idx] == idx }
+    unless row
+      raise "❌ Shape##{id}: vertex_index #{idx} is missing."
+    end
+    Vector[*row[:coord]]
+  end
+  p rows
+  initial_shapes << ShapeInfo.new(vertices, rows[0][:angle], rows[0][:scale])
+end
+
+if initial_shapes.empty?
+  raise "❌ 初期形状(Shape#0-9)が見つかりませんでした。"
+end
+
+start_shape = initial_shapes[0] # Shape#0 (基準)
+
+# 探索範囲の設定 (Shape#0を基準に設定)
+Min_a0 = start_shape.vertices.min_by { |v| v[0] }[0] + relative_range_a0[0]
+Max_a0 = start_shape.vertices.max_by { |v| v[0] }[0] + relative_range_a0[1]
+Min_b0 = start_shape.vertices.min_by { |v| v[2] }[2] + relative_range_b0[0]
+Max_b0 = start_shape.vertices.max_by { |v| v[2] }[2] + relative_range_b0[1]
+Min_a1 = input_coord_bounds[:a1_min] - margin_a1
+Max_a1 = input_coord_bounds[:a1_max] + margin_a1
+Min_b1 = input_coord_bounds[:b1_min] - margin_b1
+Max_b1 = input_coord_bounds[:b1_max] + margin_b1
+
+puts "📏 探索範囲: a0=[#{Min_a0}, #{Max_a0}], a1=[#{Min_a1}, #{Max_a1}], b0=[#{Min_b0}, #{Max_b0}], b1=[#{Min_b1}, #{Max_b1}]"
+
+# 初期化: visited と queue
+visited = Set.new
+queue = []
+candidates = [] # ShapeInfo objects
+
+# デバッグ統計情報の初期化
+debug_stats = {
+  total_queue_processed: 0,
+  common_basis_checks: 0,
+  common_basis_rejected: 0,
+  pca_checks: 0,
+  pca_rejected: 0,
+  knn_checks: 0,
+  knn_rejected: 0,
+  all_checks_passed: 0,
+  branch_detected: 0,
+  shapes_by_group: Hash.new(0),  # グループごとの採用数
+  missing_groups: Set.new
+}
+
+initial_shapes.each_with_index do |shape, i|
+  # 範囲チェック
+  shape.vertices.each do |pt|
+    unless (Min_a0..Max_a0).include?(pt[0]) && (Min_b0..Max_b0).include?(pt[2])
+      puts "❌ エラー: Shape##{i} の頂点 #{pt} が探索範囲外です。"
+      exit
+    end
+  end
+
+  visited << shape.centroid
+  candidates << shape # Store ShapeInfo object
+  debug_stats[:shapes_by_group][shape.group_key] += 1
+
+  # Shape#0 は探索済み(展開元としない)とするため、queueには入れない
+  # Shape#1 ～ Shape#9 を queue に入れる
+  if i > 0
+    queue.push(shape)
   end
 end
 
-puts "✅ 探索完了: #{candidates_count} 点出力"
+puts "\n🚀 ハイブリッド探索を開始します..."
+puts "   初期形状数: #{initial_shapes.size} (Shape#0-9)"
+puts "   グループ数: #{grouped_pca_results.size}"
+puts "   Queueサイズ: #{queue.size} (Shape#1-9)"
 
-# --- 探索完了後のデバッグ情報 ---
-puts "\n[DEBUG PERFORMANCE]"
-puts "  総キュー処理数 (Visited): #{visited.size}"
-puts "  先読みチェック通過数: #{$lookahead_success}"
-puts "  先読みチェック排除数: #{$lookahead_fail}"
-puts "  凸包判定の総実行回数: #{$hull_checks}"
-puts "  ノードが属した凸包の総数: #{$total_matches_checked}"
-puts "  複数の凸包に属したノード数: #{$multi_match_count}"
-puts "  平均多重所属数 (採用点あたり): #{$total_matches_checked.to_f / candidates_count.to_f if candidates_count > 0}"
-puts "  ノードごとの平均凸包チェック回数: #{$hull_checks.to_f / visited.size.to_f if visited.size > 0}"
+# 生成された座標を追跡（カバレッジ計算用）
+generated_coords_set = Set.new
+initial_shapes.each do |shape|
+  shape.vertices.each { |v| generated_coords_set << v.to_a }
+end
+
+# カバレッジ統計
+coverage_stats = {
+  last_report_size: 0,
+  last_coverage: 0.0
+}
+
+while !queue.empty? && candidates.size < max_points
+  current_shape = queue.shift
+  debug_stats[:total_queue_processed] += 1
+
+  begin
+    new_shapes = find_valid_tile_configuration(
+      current_shape, visited, grouped_pca_results, common_basis, max_radius_sq, debug_stats, input_coords_set
+    )
+
+    new_shapes.each do |shape|
+      next if visited.include?(shape.centroid) # 二重チェック
+
+      visited << shape.centroid
+      queue.push(shape)
+      candidates << shape # Store ShapeInfo object
+      debug_stats[:shapes_by_group][shape.group_key] += 1
+
+      # 生成座標を追跡
+      shape.vertices.each { |v| generated_coords_set << v.to_a }
+    end
+  rescue RuntimeError => e
+    puts e.message
+    break
+  end
+
+  # カバレッジ計算と進捗表示（100形状ごと）
+  if candidates.size % 100 == 0
+    matched_coords = input_coords_set & generated_coords_set
+    current_coverage = matched_coords.size.to_f / input_coords_set.size
+
+    puts "   ... #{candidates.size} 個の形状を生成済み。キュー: #{queue.size}, カバレッジ: #{(current_coverage * 100).round(2)}%"
+
+    coverage_stats[:last_report_size] = candidates.size
+    coverage_stats[:last_coverage] = current_coverage
+
+    # 目標カバレッジ達成で早期終了
+    if current_coverage >= target_coverage
+      puts "\n🎉 目標カバレッジ達成！ (#{(current_coverage * 100).round(2)}% >= #{(target_coverage * 100).round(1)}%)"
+      puts "   探索を終了します。"
+      break
+    end
+  end
+end
+
+# 最終カバレッジ計算
+final_matched = input_coords_set & generated_coords_set
+final_coverage = final_matched.size.to_f / input_coords_set.size
+
+puts "✅ 探索完了: #{candidates.size} 形状出力"
+puts "📊 最終カバレッジ: #{(final_coverage * 100).round(2)}% (#{final_matched.size}/#{input_coords_set.size}点)"
+puts "\n" + "="*60
+puts "[DEBUG PERFORMANCE STATISTICS]"
+puts "="*60
+
+puts "\n📊 探索統計:"
+puts "  総キュー処理数: #{debug_stats[:total_queue_processed]}"
+
+puts "\n🔍 検証統計:"
+puts "  共通基底検証実行回数: #{debug_stats[:common_basis_checks]}"
+puts "  共通基底検証排除数: #{debug_stats[:common_basis_rejected]}"
+puts "  PCA検証実行回数: #{debug_stats[:pca_checks]}"
+puts "  PCA検証排除数: #{debug_stats[:pca_rejected]}"
+puts "  KNN検証実行回数: #{debug_stats[:knn_checks]}"
+puts "  KNN検証排除数: #{debug_stats[:knn_rejected]}"
+puts "  全検証通過数: #{debug_stats[:all_checks_passed]}"
+
+puts "\n⚠️ 分岐検出:"
+puts "  分岐検出回数: #{debug_stats[:branch_detected]}"
+
+if debug_stats[:missing_groups].any?
+  puts "\n⚠️ 警告: 以下のグループが見つかりませんでした:"
+  debug_stats[:missing_groups].each { |g| puts "    #{g}" }
+end
+
+puts "\n📈 グループ別採用数:"
+debug_stats[:shapes_by_group].sort_by { |k, v| -v }.each do |key, count|
+  puts "  #{key}: #{count} 形状"
+end
+
+puts "\n💡 効率分析:"
+total_checks = debug_stats[:common_basis_checks] + debug_stats[:pca_checks] + debug_stats[:knn_checks]
+total_rejected = debug_stats[:common_basis_rejected] + debug_stats[:pca_rejected] + debug_stats[:knn_rejected]
+
+puts "  総検証回数: #{total_checks}"
+puts "  総排除数: #{total_rejected}"
+puts "  排除率: #{total_checks > 0 ? (total_rejected.to_f / total_checks * 100).round(2) : 0}%"
+
+if debug_stats[:common_basis_checks] > 0
+  cb_efficiency = (debug_stats[:common_basis_rejected].to_f / debug_stats[:common_basis_checks] * 100).round(2)
+  puts "  共通基底検証排除率: #{cb_efficiency}%"
+end
+
+if debug_stats[:pca_checks] > 0
+  pca_efficiency = (debug_stats[:pca_rejected].to_f / debug_stats[:pca_checks] * 100).round(2)
+  puts "  PCA検証排除率: #{pca_efficiency}%"
+end
+
+if debug_stats[:knn_checks] > 0
+  knn_efficiency = (debug_stats[:knn_rejected].to_f / debug_stats[:knn_checks] * 100).round(2)
+  puts "  KNN検証排除率: #{knn_efficiency}%"
+end
+
+puts "="*60
+
+########################
+
+# --- ステップ6: CSV保存 ---
+output_filename = "generated_spectre_integer_coords3.csv"
+puts "\n💾 生成された形状を #{candidates.size}個、'#{output_filename}' に保存中..."
+
+# 統計カウンタ
+comparison_stats = {
+  in_input: 0,
+  extra: 0,
+  total: 0
+}
+
+CSV.open(output_filename, 'w') do |csv|
+  # ヘッダー行（12カラム形式: 比較列を追加）
+  csv << ['a0', 'a1', 'b0', 'b1', 'key', 'perp_x', 'perp_y', 'perp_sq', 'perp_x_common', 'perp_y_common', 'in_input', 'is_extra']
+
+  candidates.each do |shape|
+    group_key = shape.group_key
+    pca_result = grouped_pca_results[group_key]
+
+    # 各頂点を出力
+    shape.vertices.each do |v|
+      a0, a1, b0, b1 = v.to_a
+
+      # 入力データとの比較
+      coord_array = [a0, a1, b0, b1]
+      in_input = input_coords_set.include?(coord_array)
+      is_extra = !in_input
+
+      # 統計更新
+      comparison_stats[:total] += 1
+      comparison_stats[:in_input] += 1 if in_input
+      comparison_stats[:extra] += 1 if is_extra
+
+      # グループ固有の基底への射影（perp_x, perp_y, perp_sq）
+      if pca_result && pca_result[:basis].any?
+        perp_local = pca_result[:basis].map { |b| v.inner_product(Vector[*b]) }
+        perp_x = perp_local[0]
+        perp_y = perp_local[1]
+        perp_sq = perp_local.map { |x| x**2 }.sum
+      else
+        perp_x = 0.0
+        perp_y = 0.0
+        perp_sq = 0.0
+      end
+
+      # 共通基底への射影（perp_x_common, perp_y_common）
+      perp_common = common_basis.map { |b| v.inner_product(Vector[*b]) }
+      perp_x_common = perp_common[0]
+      perp_y_common = perp_common[1]
+
+      # CSV行の出力（比較列を含む）
+      csv << [a0, a1, b0, b1, group_key, perp_x, perp_y, perp_sq, perp_x_common, perp_y_common, in_input, is_extra]
+    end
+  end
+end
+
+total_points = candidates.sum { |s| s.vertices.size }
+puts "✅ CSV出力完了: #{output_filename} (#{total_points}点)"
+
+# 比較統計の出力
+puts "\n📊 入力データとの比較統計:"
+puts "  総出力点数: #{comparison_stats[:total]}"
+puts "  入力データに存在: #{comparison_stats[:in_input]} (#{(comparison_stats[:in_input].to_f / comparison_stats[:total] * 100).round(2)}%)"
+puts "  探索結果の余分な点: #{comparison_stats[:extra]} (#{(comparison_stats[:extra].to_f / comparison_stats[:total] * 100).round(2)}%)"
+puts "  入力データの未発見点: #{input_coords_set.size - comparison_stats[:in_input]}"
+
+p ["spectre座標　探索時間", Time.now - find_start_time]
+
+puts "✅ 保存完了！"
+
+require 'gnuplot'
+
+# plot_filename = "spectre_plot.png"
+# puts "\n📈 グラフを '#{plot_filename}' に描画中..."
+
+# Gnuplot.open do |gp|
+#   Gnuplot::Plot.new(gp) do |plot|
+#     plot.term "png size 800,800"
+#     plot.output plot_filename
+#     plot.title "Spectre Tiling via Best-Fit Projection"
+#     plot.xlabel "perp_x"
+#     plot.ylabel "perp_y"
+#     plot.grid
+#     plot.set "size square"
+
+#     perp_points = candidates.map { |row| [row[4], row[5]] }.transpose
+#     plot.data << Gnuplot::DataSet.new(perp_points) do |ds|
+#       ds.with = "points pt 7 ps 0.5 lc rgb '#3366cc'"
+#       ds.title = "Projected Points"
+#     end
+#   end
+# end
+
+# puts "✅ グラフ描画完了！"
