@@ -10,3 +10,6 @@ rs*.txt
 *.png
 !spectre-color-for_find_mystec-clusters.png
 docs/
+my_spectre_*.txt
+*.xlsm
+test*.txt
