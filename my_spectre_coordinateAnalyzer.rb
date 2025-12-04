@@ -1,3 +1,4 @@
+# my_spectre_coordinateAnalyzer3.rb
 
 #!/usr/bin/env ruby
 # my_spectre_coordinateAnalyzer.rb
@@ -108,12 +109,12 @@ def rmse(vectors)
 end
 
 # --- コマンドライン引数チェック ---
-if ARGV.empty?
-  puts "❗ ファイル名を指定してください: ruby spectre_coordinate_analyzer.rb input.csv"
-  exit
-end
+# if ARGV.empty?
+#   puts "❗ ファイル名を指定してください: ruby spectre_coordinate_analyzer.rb input.csv"
+#   exit
+# end
 
-filename = ARGV[0]
+filename = ARGV[0] || 'spectre-Cyclotomic_MonoChrome_Tile-5.3-14.6-4-4401tiles.svg_full_vertex.csv'
 
 # --- ステップ1: データ読み込み ---
 columns = ['pt0-coef:a0', 'a1', 'b0', 'b1']
@@ -166,6 +167,105 @@ begin
 end
 
 # --- 渦巻き境界の抽出（凸包） ---
+# KNN検索のためのKD木の実装
+class KDTree
+  Node = Struct.new(:point, :left, :right, :axis)
+
+  def initialize(points)
+    @root = build_tree(points, 0)
+  end
+
+  def build_tree(points, depth)
+    return nil if points.empty?
+
+    axis = depth % 2 # 2次元なので axis は 0(x) か 1(y)
+    points.sort_by! { |p| p[axis] }
+    median = points.size / 2
+
+    Node.new(
+      points[median],
+      build_tree(points[0...median], depth + 1),
+      build_tree(points[median+1..-1], depth + 1),
+      axis
+    )
+  end
+
+  def nearest_k(target, k)
+    best_nodes = [] # [distance_sq, point] のリスト
+    search_recursive(@root, target, k, best_nodes)
+    best_nodes.sort_by { |d, _| d }
+  end
+
+  private
+
+  def search_recursive(node, target, k, best_nodes)
+    return unless node
+
+    dist_sq = (node.point[0] - target[0])**2 + (node.point[1] - target[1])**2
+
+    # 候補リストに追加・更新
+    if best_nodes.size < k
+      best_nodes << [dist_sq, node.point]
+      best_nodes.sort_by! { |d, _| -d } # 距離の降順（末尾が最大距離）
+    elsif dist_sq < best_nodes.first[0]
+      best_nodes[0] = [dist_sq, node.point]
+      best_nodes.sort_by! { |d, _| -d }
+    end
+
+    axis = node.axis
+    diff = target[axis] - node.point[axis]
+
+    near_node = diff < 0 ? node.left : node.right
+    far_node = diff < 0 ? node.right : node.left
+
+    search_recursive(near_node, target, k, best_nodes)
+
+    # 反対側の枝を探索する必要があるか？
+    # 現在のk個目の候補よりも、分割軸までの距離が近ければ、反対側にもっと近い点があるかもしれない
+    if best_nodes.size < k || diff**2 < best_nodes.first[0]
+      search_recursive(far_node, target, k, best_nodes)
+    end
+  end
+end
+
+# x_perp_pca_raw_data = [[x, y], [x, y], ...] ← PCA残差ベクトル群
+# KD木を構築
+puts "🌳 KNN検索用のKD木を構築中..."
+kd_tree = KDTree.new(x_perp_pca_raw_data)
+
+# KNNによる判定関数
+# k=5 程度の近傍点との平均距離が、閾値以下なら「有効」とみなす
+# 閾値は window_radius の何割か、あるいはデータ密度から自動推定する
+# ここでは window_radius (最大半径) ではなく、平均的な点間距離を基準にするのが良いが、
+# 簡易的に window_radius * 係数 で試す。
+KNN_K = 5
+# 閾値の調整: データの平均的な「隣接距離」を見積もる必要がある。
+# 簡易的に、window_radius (データの広がり) の 1/10 程度を許容範囲としてみる。
+# 厳密には、正解データの平均最近傍距離を計算して決めるのがベスト。
+KNN_THRESHOLD = window_radius_pca_raw * 0.2
+
+def is_valid_point_knn?(point, kd_tree, threshold)
+  neighbors = kd_tree.nearest_k(point, KNN_K)
+  return false if neighbors.size < KNN_K
+
+  # 平均距離
+  mean_dist = Math.sqrt(neighbors.map { |d, _| d }.sum / KNN_K)
+  mean_dist < threshold
+end
+
+# 閾値の自動調整（正解データ自身の平均距離を測る）
+sample_points = x_perp_pca_raw_data.sample(100)
+mean_neighbor_dists = sample_points.map do |p|
+  neighbors = kd_tree.nearest_k(p, KNN_K + 1) # 自分自身が含まれるので +1
+  neighbors.shift # 自分自身(距離0)を除く
+  Math.sqrt(neighbors.map { |d, _| d }.sum / KNN_K)
+end
+avg_density = mean_neighbor_dists.sum / mean_neighbor_dists.size
+KNN_THRESHOLD_ADAPTIVE = avg_density * 2.5 # 平均密度の2.5倍まで許容（隙間はこれより広いはず）
+
+puts "📏 KNN閾値設定: 平均密度=#{avg_density.round(4)}, 採用閾値=#{KNN_THRESHOLD_ADAPTIVE.round(4)}"
+
+# --- 渦巻き境界の抽出（凸包） ---
 def compute_convex_hull(points)
   # points: [[x, y], [x, y], ...]
   # hull = ConvexHull.compute(points)
@@ -214,7 +314,6 @@ def point_inside_polygon?(point, polygon)
   inside
 end
 
-# x_perp_pca_raw_data = [[x, y], [x, y], ...] ← PCA残差ベクトル群
 boundary_polygon = compute_convex_hull(x_perp_pca_raw_data)
 p ["凸包点数", boundary_polygon.size]
 p ["凸包", boundary_polygon]
@@ -254,17 +353,18 @@ puts "💾 結合データを '#{output_filename}' に保存中..."
 
 CSV.open(output_filename, 'w') do |csv|
   # ヘッダー行
-  csv << ['pt0-coef:a0', 'a1', 'b0', 'b1',
-          'raw_PCA_x', 'raw_PCA_y',
+  csv << [
+          "\uFEFF" + 'shape#','label','vertex_index',	'angle','scale_y','vertex_expression','x','y',
+          'pt0-coef:a0', 'a1', 'b0', 'b1',
+          # 'raw_PCA_x', 'raw_PCA_y',
           'perp_PCA_x', 'perp_PCA_y',
           'perp_LSQ_x', 'perp_LSQ_y']
 
   # 各行のデータを結合して出力
-  data.each_with_index do |row, i|
-    csv << row +
-           x_perp_pca_raw_data[i] +
+  raw_data.each_with_index do |row, i|
+    csv << (row.values_at("\uFEFF" + 'shape#', 'label', 'vertex_index', 'angle', 'scale_y', 'vertex_expression', 'x', 'y', 'pt0-coef:a0', 'a1', 'b0', 'b1') +
            x_perp_pca_data[i] +
-           x_perp_lsq_data[i]
+           x_perp_lsq_data[i])
   end
 end
 
@@ -304,17 +404,45 @@ def estimate_a1_b1(a0, b0, c0, c1, d0, d1)
   [a1, b1]
 end
 
+# --- ShapeInfo Class ---
+class ShapeInfo
+  attr_reader :vertices, :centroid
+  attr_accessor :invalid_connect_from
+
+  def initialize(vertices)
+    @vertices = vertices # Array of Vectors
+    @centroid = calculate_centroid(vertices)
+    @invalid_connect_from = [] # Array of centroids (Vectors) from which this shape was reached via invalid branching
+  end
+
+  def calculate_centroid(vertices)
+    sum = Vector[0.0, 0.0, 0.0, 0.0]
+    vertices.each { |v| sum += v }
+    sum / vertices.size.to_f
+  end
+
+  def edges
+    Enumerator.new do |y|
+      @vertices.each_cons(2) { |v1, v2| y << [v1, v2] }
+      y << [@vertices.last, @vertices.first]
+    end
+  end
+end
+
+
+relative_range_a0 = [-6,24]
+relative_range_b0 = [-50,50]
+
+# Min/Max will be calculated after loading shapes
+
+
 
 find_start_time = Time.now
 candidates = []
 
-max_points = 30000
+max_points = 3000
 
-Start_node = Vector[1,-230,-201,81]
-Min_a0 = -1
-Max_a0 = 24
-Min_b0 = -226
-Max_b0 = -200
+
 
 # visited = Set.new
 # queue = []
@@ -427,6 +555,67 @@ LEGAL_NEXT_STEPS = Hash.new { |h, k| h[k] = [] }
 end
 puts "\nジオメトリルールを構築完了。 LEGAL_NEXT_STEPSのキー数: #{LEGAL_NEXT_STEPS.size}"
 
+# --- 14頂点パターンの抽出 ---
+puts "\n🧩 14頂点パターンの抽出を開始..."
+# shape# ごとに vertex_index -1 ～ -14 の行をグループ化
+spectre_patterns = {} # { shape_id => [relative_vectors] }
+
+# raw_data は CSV::Table
+# shape# と vertex_index 列が必要
+# データの各行をハッシュ化して扱いやすくする
+rows_by_shape = Hash.new { |h, k| h[k] = [] }
+
+raw_data.each do |row|
+  # BOM対策: shape# カラム名が \uFEFFshape# になっている可能性がある
+  shape_id = row['shape#'] || row["\uFEFFshape#"]
+  if shape_id.nil?
+    # ヘッダーが見つからない場合のデバッグ
+    puts "⚠️ Row #{row.inspect} has no shape# key. Keys: #{row.headers}" if rows_by_shape.empty?
+    next
+  end
+  v_idx = row['vertex_index'].to_i
+  next unless (-14..-1).include?(v_idx)
+
+  # 座標 (a0, a1, b0, b1)
+  coord = [row['pt0-coef:a0'].to_f, row['a1'].to_f, row['b0'].to_f, row['b1'].to_f]
+  rows_by_shape[shape_id] << { idx: v_idx, coord: coord }
+end
+
+VALID_SPECTRE_PATTERNS = []
+
+rows_by_shape.each do |shape_id, rows|
+  # -1 から -14 まで揃っているか確認
+  indices = rows.map { |r| r[:idx] }.sort.reverse
+  if indices != (-14..-1).to_a.reverse
+    # 欠落がある場合はスキップ（あるいは警告）
+    # puts "⚠️ Shape##{shape_id}: 頂点が揃っていません (#{indices.size}/14)"
+    next
+  end
+
+  orignal_points = (-14..-1).to_a.reverse.map{|idx| rows.find { |r| r[:idx] == idx }[:coord]}
+  # orignal_points.size.times do |i|
+    base_vector = Vector[*orignal_points[0]] # Vector[*orignal_points[i]] # 各頂点を基準とした相対座標を計算
+    pattern = orignal_points.map{|p| Vector[*p] - base_vector}
+    VALID_SPECTRE_PATTERNS << pattern
+    # orignal_points.rotate!
+  # end
+end
+
+# 重複排除（相対座標のセットとして同じなら1つにまとめる）
+# Vectorの配列を比較
+VALID_SPECTRE_PATTERNS.uniq!
+
+puts "✅ 抽出されたユニークなSpectreパターン数: #{VALID_SPECTRE_PATTERNS.size}"
+if VALID_SPECTRE_PATTERNS.size < 24
+  puts "⚠️ 警告: 全24パターン（12回転×2裏表）が揃っていません。存在するパターンのみで探索します。"
+end
+
+# パターンの表示
+VALID_SPECTRE_PATTERNS.each_with_index do |pat, i|
+  puts "Pattern #{i+1}: #{pat.map(&:to_a).inspect}"
+end
+
+
 
 # --- ステップ5: 幾何学的・優先度付き探索 ---
 # puts "\n💡 幾何学的ルールを適用した優先度付き探索を開始します..."
@@ -482,71 +671,184 @@ puts "\nジオメトリルールを構築完了。 LEGAL_NEXT_STEPSのキー数:
 # 💾 生成された4D整数座標を 13526個、'generated_spectre_integer_coords3.csv' に保存中... ["spectre座標　探索時間", 0.5301304]
 
 # --- ステップ5: FIFOキューと先読みによる探索 ---
-puts "\n💡 FIFOキューと先読みルールを適用した、履歴に依存しない探索を開始します..."
+puts "\n💡 FIFOキューと14ステップ形状チェックによる探索を開始します..."
 
+# パフォーマンス・トレース用変数
+$perf_stats = {
+  check_count: 0,
+  prune_counts: Hash.new(0), # 何手目で枝刈りされたか
+  valid_tile_found: 0,
+  duplicates_found: 0
+}
 
-# キューの要素: [現在座標(Vector)] のみ
-# Start_node = Vector[0, 0, 0, 0]
-queue = [Start_node] # シンプルなFIFOキュー
-visited = Set[Start_node]
-window_radius_2pow = window_radius**2
+# 14ステップ整合性チェック関数 (Shape-based)
+# current_shape_info: 現在のShapeInfoオブジェクト
+# 戻り値: [new_shape_infos] (新しく見つかったShapeInfoのリスト)
+def find_valid_tile_configuration(current_shape_info, visited, kd_tree, threshold)
+  new_shapes = []
 
-# --- メインの探索ループ ---
-while !queue.empty? && candidates.size < max_points
-  # キューの先頭からFIFOで取り出す
-  current_node = queue.shift
+  current_shape_info.edges.each do |v1, v2|
+    edge_vec = v2 - v1
 
-  # --- 採用処理 ---
-  current_node_perp = P_perp_basis.map { |basis| current_node.inner_product(Vector[*basis]) }
-  next unless point_inside_polygon?(current_node_perp, boundary_polygon)
-  candidates << current_node.to_a + current_node_perp
+    # このエッジに対して見つかった新規候補
+    candidates_for_edge = []
 
-  if candidates.size % 5000 == 0
-    puts "   ... #{candidates.size} 個の頂点を生成済み。キューのサイズ: #{queue.size}"
-  end
+    # VALID_SPECTRE_PATTERNS の中から、このエッジにマッチするものを探す
+    # パターン内の各エッジについて、edge_vec または -edge_vec と一致するかチェック
 
-  # --- 次の候補を、履歴に依存せず常に12方向から探す ---
-  EDGE_1ST_VECTORS.each do |step_vec|
-    neighbor_node = current_node + step_vec
+    VALID_SPECTRE_PATTERNS.each do |pattern|
+      # patternは相対座標のリスト (Vector)。隣接点間のベクトルを計算して照合
+      # patternの頂点は14個。エッジは (0->1), (1->2), ..., (13->0)
+      14.times do |i|
+        # マッチ判定
+        # 1. 順方向マッチ: v_edge == p_vec
+        #    現在のエッジ v1 -> v2 に対して、パターンのエッジ p_start -> p_end が重なる
+        #    配置: v1 が p_start に、v2 が p_end になるように平行移動
+        #    しかし、辺を共有して隣接する場合、通常は「逆向き」に重なることが多い（多角形の向きによる）
+        #    Spectreタイルの並べ方は、虚像反転を含めないので、逆順でのマッチのみ確認する。
+        p_start = pattern[i]
+        p_end = pattern[(i + 1) % 14]
+        p_vec = p_start - p_end
+        next unless p_vec == edge_vec
 
-    # 訪問済みチェックと範囲チェック
-    next unless (Min_a0..Max_a0).include?(neighbor_node[0]) && (Min_b0..Max_b0).include?(neighbor_node[2])
-    next if visited.include?(neighbor_node)
+        # 配置のためのオフセット計算
+        # 逆方向マッチ(推奨): v1 -> v2 と p_end -> p_start が重なる
+        # つまり v1 = target_p_end, v2 = target_p_start
+        # target_p_start = offset + p_start
+        # v2 = offset + p_start => offset = v2 - p_start
 
-    # 候補点の有効性チェック（窓の内側か？）
-    neighbor_node_perp = P_perp_basis.map { |basis| neighbor_node.inner_product(Vector[*basis]) }
-    unless (neighbor_node_perp.map { |x| x**2 }.sum) < window_radius_2pow &&
-      point_inside_polygon?(neighbor_node_perp, boundary_polygon)
-      visited << neighbor_node
-      next
-    end
+        offset = v2 - p_start
 
-    # --- 「先読み」ロジック ---
-    is_not_dead_end = false
-    # この候補手（neighbor_node）から、さらに次に行ける手を探す
-    # 次のステップは、現在の移動ベクトル(step_vec)に依存する
-    grandchild_possible_steps = LEGAL_NEXT_STEPS[step_vec] || []
-    grandchild_possible_steps.each do |grandchild_step_vec|
-      grandchild_node = neighbor_node + grandchild_step_vec
+        # 候補形状の頂点を計算
+        candidate_points = pattern.map { |v| v + offset }
 
-      grandchild_perp = P_perp_basis.map { |basis| grandchild_node.inner_product(Vector[*basis]) }
+        # 重心を計算して visited チェック (KNNの前にコストの低いチェック)
+        candidate_shape = ShapeInfo.new(candidate_points)
+        next if visited.include?(candidate_shape.centroid)
 
-      # 有効な次の手が一つでも見つかればOK
-      if (grandchild_perp.map { |x| x**2 }.sum) < window_radius_2pow
-        is_not_dead_end = true
-        break
+        # 範囲チェック & KNNチェック
+        is_valid = true
+        candidate_points.each do |pt|
+          unless (Min_a0..Max_a0).include?(pt[0]) && (Min_b0..Max_b0).include?(pt[2])
+            is_valid = false; break
+          end
+
+          pt_perp = P_perp_basis.map { |basis| pt.inner_product(Vector[*basis]) }
+          unless is_valid_point_knn?(pt_perp, kd_tree, threshold)
+            is_valid = false; break
+          end
+        end
+
+        if is_valid
+          candidates_for_edge << candidate_shape
+        end
       end
     end
-    # --- 「先読み」ここまで ---
 
-    # 行き止まりでなければ、この候補点を正式に採用
-    if is_not_dead_end
-      visited << neighbor_node
-      # キューの末尾に追加（FIFO）
-      queue.push(neighbor_node)
-    # else
-      # 行き止まりなら、次の候補点を探す。neighbor_nodeと同じ座標に、別の方向から侵入した場合には　行き止まりにならないかもしれないので、visitedに追加しない。
+    # 分岐記録: 1つのエッジに対して2つ以上の新規候補が見つかったら記録
+    if candidates_for_edge.uniq { |s| s.centroid }.size >= 2
+      puts "⚠️ 分岐検出: エッジ #{v1} -> #{v2} に対して #{candidates_for_edge.size} 個の新規タイルが見つかりました。"
+      candidates_for_edge.each_with_index do |s, idx|
+        puts "  Candidate #{idx}: Centroid #{s.centroid}"
+        s.invalid_connect_from << current_shape_info.centroid
+      end
     end
+
+    new_shapes.concat(candidates_for_edge)
+  end
+
+  new_shapes
+end
+
+# --- メイン探索ループ ---
+
+# 初期化
+# 初期化: CSVからShape#0～Shape#9を読み込む
+initial_shapes = []
+(0..9).each do |id|
+  rows = rows_by_shape[id.to_s]
+  if rows.empty?
+    puts "⚠️ Shape##{id} not found in CSV."
+    next
+  end
+  # vertex_index -14..-1 の順にソートして座標を取得
+  sorted_rows = rows.sort_by { |r| -r[:idx] } # -1, -2, ..., -14 の順?
+  # ShapeInfoは頂点順序に依存するため、CSVのvertex_indexの順序(-1, -2, ...)に従うか、
+  # VALID_SPECTRE_PATTERNSの抽出ロジック(-14..-1のreverse => -1, -2...)に合わせる必要がある。
+  # ここでは vertex_index の降順 (-1, -2, ..., -14) で取得する (VALID_SPECTRE_PATTERNSと同じ)
+
+  vertices = (-14..-1).to_a.reverse.map do |idx|
+    row = rows.find { |r| r[:idx] == idx }
+    unless row
+      raise "❌ Shape##{id}: vertex_index #{idx} is missing."
+    end
+    Vector[*row[:coord]]
+  end
+  initial_shapes << ShapeInfo.new(vertices)
+end
+
+if initial_shapes.empty?
+  raise "❌ 初期形状(Shape#0-9)が見つかりませんでした。"
+end
+
+start_shape = initial_shapes[0] # Shape#0 (基準)
+
+# 探索範囲の設定 (Shape#0を基準に設定)
+Min_a0 = start_shape.vertices.min_by { |v| v[0] }[0] + relative_range_a0[0]
+Max_a0 = start_shape.vertices.max_by { |v| v[0] }[0] + relative_range_a0[1]
+Min_b0 = start_shape.vertices.min_by { |v| v[2] }[2] + relative_range_b0[0]
+Max_b0 = start_shape.vertices.max_by { |v| v[2] }[2] + relative_range_b0[1]
+
+puts "📏 探索範囲: a0=[#{Min_a0}, #{Max_a0}], b0=[#{Min_b0}, #{Max_b0}]"
+
+# 初期化: visited と queue
+visited = Set.new
+queue = []
+candidates = [] # ShapeInfo objects
+
+initial_shapes.each_with_index do |shape, i|
+  # 範囲チェック
+  shape.vertices.each do |pt|
+    unless (Min_a0..Max_a0).include?(pt[0]) && (Min_b0..Max_b0).include?(pt[2])
+      puts "❌ エラー: Shape##{i} の頂点 #{pt} が探索範囲外です。"
+      exit
+    end
+  end
+
+  visited << shape.centroid
+  candidates << shape # Store ShapeInfo object
+
+  # Shape#0 は探索済み(展開元としない)とするため、queueには入れない
+  # Shape#1 ～ Shape#9 を queue に入れる
+  if i > 0
+    queue.push(shape)
+  end
+end
+
+puts "\n🚀 形状ベースの探索を開始します..."
+puts "   初期形状数: #{initial_shapes.size} (Shape#0-9)"
+puts "   Queueサイズ: #{queue.size} (Shape#1-9)"
+
+while !queue.empty? && candidates.size < max_points
+  current_shape = queue.shift
+
+  begin
+    new_shapes = find_valid_tile_configuration(current_shape, visited, kd_tree, KNN_THRESHOLD_ADAPTIVE)
+
+    new_shapes.each do |shape|
+      next if visited.include?(shape.centroid) # 二重チェック
+
+      visited << shape.centroid
+      queue.push(shape)
+      candidates << shape # Store ShapeInfo object
+    end
+  rescue RuntimeError => e
+    puts e.message
+    break
+  end
+
+  if candidates.size % 100 < 10
+     puts "   ... #{candidates.size} 個の形状を生成済み。キュー: #{queue.size}, Visited Tiles: #{visited.size}"
   end
 end
 
@@ -582,13 +884,30 @@ end
 
 # --- ステップ6: CSV保存 ---
 output_filename = "generated_spectre_integer_coords3.csv"
-puts "\n💾 生成された4D整数座標を #{candidates.size}個、'#{output_filename}' に保存中..."
+puts "\n💾 生成された形状を #{candidates.size}個、'#{output_filename}' に保存中..."
 
 CSV.open(output_filename, 'w') do |csv|
-  csv << ['a0', 'a1', 'b0', 'b1', 'perp_x', 'perp_y']
-  candidates.each { |row| csv << row }
+  csv << ['shape_centroid', 'invalid_connect_from', 'a0', 'a1', 'b0', 'b1', 'perp_x', 'perp_y']
+
+  candidates.each do |shape|
+    # 重心の文字列化
+    centroid_str = "[#{shape.centroid.to_a.map { |v| v.round(4) }.join(',')}]"
+
+    # invalid_connect_from の文字列化
+    invalid_str = if shape.invalid_connect_from.empty?
+      ""
+    else
+      shape.invalid_connect_from.map { |c| "[#{c.to_a.map { |v| v.round(4) }.join(',')}]" }.join("; ")
+    end
+
+    # 各頂点を出力
+    shape.vertices.each do |v|
+      perp = P_perp_basis.map { |basis| v.inner_product(Vector[*basis]) }
+      csv << [centroid_str, invalid_str] + v.to_a + perp
+    end
+  end
 end
-p ["spectre座標　探索時間", Time.now -  find_start_time]
+p ["spectre座標　探索時間", Time.now - find_start_time]
 
 puts "✅ 保存完了！"
 
