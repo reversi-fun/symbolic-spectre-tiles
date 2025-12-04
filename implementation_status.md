@@ -540,10 +540,12 @@ candidates_for_edge << candidate_shape
 
 ## 6. 参照ドキュメント
 
-1. `hybrid_algorithm_specification.md` - メイン仕様書
-2. `hybrid_additional_requirements.md` - 追加要件
+1. `hybrid_algorithm_specification.md` - メイン仕様書（完全な設計仕様、コード例）
+2. ~~`hybrid_additional_requirements.md`~~ - 追加要件（**changes.md セクション0に統合済み**）
 3. `hybrid_data_structures.md` - データ構造詳細
 4. `my_spectre_coordinateAnalyzer_keyed.rb` - 点ベース実装（参考）
+
+**注**: `hybrid_additional_requirements.md` の主要内容（CSV逐次出力、stderr分離等）は `changes.md` に統合済みのため、削除可能。
 
 ---
 
