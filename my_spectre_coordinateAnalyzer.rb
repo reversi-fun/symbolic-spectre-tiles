@@ -1,4 +1,4 @@
-# my_spectre_coordinateAnalyzer3.rb
+# filename= my_spectre_coordinateAnalyzer.rb
 
 #!/usr/bin/env ruby
 # my_spectre_coordinateAnalyzer.rb

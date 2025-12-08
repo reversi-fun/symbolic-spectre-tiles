@@ -1,6 +1,5 @@
+# filename= my_spectre_coordinateAnalyzer_base_interface.rb
 # frozen_string_literal: true
-require 'matrix'
-require 'set'
 
 # ====================================================================
 # SpectreCoordinateAnalyzerBaseInterface
@@ -9,10 +8,98 @@ require 'set'
 # 最も洗練された実装（精度向上版）を集約したインターフェース定義ファイル。
 # ====================================================================
 
+require 'matrix'
+require 'set'
+
+# 高精度PCA用：条件付きrequire
+begin
+  require_relative 'HighPrecisionMath/HighPrecisionMath'
+  HIGHPRECISION_AVAILABLE = true
+rescue LoadError
+  HIGHPRECISION_AVAILABLE = false
+end
+
 module SpectreMath
   module_function
 
+  # ====================================================================
+  # MathContext シングルトンレジストリ
+  # 型（クラス名）ごとに数学定数を管理し、引数の型に応じて適切な値を返す
+  # ====================================================================
+
+  # クラス名 => { 定数名 => Proc } のハッシュ
+  @@math_contexts = {}
+
+  # 定数名の定義（標準化された名前）
+  SINGULARITY_THRESHOLD = :singularity_threshold # 数値的特異性回避用（ゼロ判定）
+  CONVERGENCE_EPSILON = :convergence_epsilon   # 反復計算の収束判定用
+  GEOMETRIC_TOLERANCE = :geometric_tolerance   # 幾何学的許容誤差
+
+  # 型ごとの数学定数を登録
+  # @param class_names [Array<String>] クラス名のリスト（例: ["BigDecimal", "Float"]）
+  # @param context_procs [Hash<String, Proc>] 定数名: Proc のハッシュ
+  #
+  # 使用例:
+  #   SpectreMath.register_math_context(
+  #     ["BigDecimal"],
+  #     singularity_threshold: BigDecimal('10') ** (-(HighPrecisionMath.precision * 0.9).to_i),
+  #     convergence_epsilon: BigDecimal('10') ** (-(HighPrecisionMath.precision * 0.8).to_i),
+  #     geometric_tolerance: BigDecimal('1e-160')
+  #   )
+  def register_math_context(class_names,
+  singularity_threshold:,  # 数値的特異性回避用（ゼロ判定）
+  convergence_epsilon:,   # 反復計算の収束判定用
+  geometric_tolerance:   # 幾何学的許容誤差
+  )
+    context_procs = {
+      singularity_threshold: singularity_threshold.nil? ? nil : singularity_threshold.respond_to?(:call) ? singularity_threshold : -> { singularity_threshold },
+      convergence_epsilon: convergence_epsilon.nil? ? nil : convergence_epsilon.respond_to?(:call) ? convergence_epsilon : -> { convergence_epsilon },
+      geometric_tolerance: geometric_tolerance.nil? ? nil : geometric_tolerance.respond_to?(:call) ? geometric_tolerance : -> { geometric_tolerance }
+    }
+    class_names.each do |class_name|
+      @@math_contexts[class_name] ||= {}
+      [:singularity_threshold,:convergence_epsilon, :geometric_tolerance ].each do |const_name_symbol|
+        if context_procs[const_name_symbol]
+          @@math_contexts[class_name][const_name_symbol] = context_procs[const_name_symbol]
+        end
+      end
+    end
+  end
+
+  # 型に応じた数学定数を取得
+  # @param class_name [String] クラス名（例: "BigDecimal", "Float"）
+  # @param const_name [String] 定数名（:singularity_threshold, :convergence_epsilon, :geometric_tolerance）
+  # @return [Numeric] 定数値
+  #
+  # 使用例:
+  #   tolerance = SpectreMath.get_math_context(pt.class.name, SpectreMath::GEOMETRIC_TOLERANCE)
+  def get_math_context(class_name, const_name)
+    context = @@math_contexts[class_name]
+    unless context   # 未登録の型の場合、停止
+      raise ArgumentError, "⚠️ 警告: #{class_name} の MathContext が未登録です。"
+    end
+
+    proc_or_value = context[const_name]
+    unless proc_or_value
+      raise ArgumentError, "定数名 '#{const_name}' は #{class_name} の MathContext に登録されていません。"
+    end
+
+    # Procを呼び出して最新の値を取得
+    proc_or_value.call
+  end
+
+  # デバッグ用: 登録されているすべてのコンテキストを表示
+  def list_math_contexts
+    @@math_contexts.each do |class_name, context|
+      puts "#{class_name}:"
+      context.each do |const_name, proc|
+        puts "  #{const_name}: #{proc.call}"
+      end
+    end
+  end
+
   # --- ベクトル・行列演算 ---
+
 
   def mean_vector(data)
     cols = data.transpose
@@ -55,6 +142,7 @@ module SpectreMath
 
   # 機能概要: 主成分分析を行い、共分散行列の小さい固有値に対応するn個の固有ベクトルを返す。
   # Input: data (Array<Array<Numeric>>), n_components (Integer), key (String/Optional for debug)
+  # Output: Array<Array<Numeric>> 1e-6以下で概ね０に近い固有値に対応する固有ベクトルで、2行３列の行列。
   def pca_components(data, n_components = 2, key = "")
     return [] if data.empty?
 
@@ -77,17 +165,84 @@ module SpectreMath
   end
 
   # --- 最小二乗法 (Least Squares) ---
+  # def least_squares(x_data, y_data)
+  #   x = Matrix[*x_data]
+  #   y = Vector[*y_data]
+  #   xt = x.transpose
 
-  def least_squares(x_data, y_data, max_iter = 3, tol = 1e-6, lambda = 1e-8)
-    x = Matrix[*x_data]
-    y = Vector[*y_data]
-    xt = x.transpose
+  #   # 通常の正規方程式
+  #   beta = (xt * x).inverse * xt * y
+  #   beta.to_a
+    # max_iter = 3
+    # tol = SpectreMath.get_math_context(x_data[0][0].class.name, SpectreMath::CONVERGENCE_EPSILON)
+    # lambda = SpectreMath.get_math_context(x_data[0][0].class.name, SpectreMath::CONVERGENCE_EPSILON)
+  # end
 
-    # 通常の正規方程式
-    beta = (xt * x).inverse * xt * y
-    beta.to_a
+  # Classify points by projection residuals onto given components.
+  # Generic implementation: type-agnostic (Integer, Float, BigDecimal compatible)
+  #
+  # points: Array<Array<Numeric>> (each 4-dim)
+  # components: Array<Array<Numeric>> (each 4-dim basis vector, assumed normalized)
+  # threshold_sq: Numeric or nil; if nil compute mean+3*std of residual_norm_sq
+  # Returns: Array<Hash{ :point, :projections, :residual_norm_sq, :in_inside_by_residual }>
+  def classify_by_projection(points, components, threshold_sq: nil)
+    results = points.map do |pt|
+      v = pt
+      # 内積計算（型を統一せず、Rubyの型自動昇格に任せる）
+      projections = components.map { |c| v.zip(c).map { |a, b| a * b }.sum }
+
+      # 復元値の計算
+      reconstructed = Array.new(pt.size, 0)
+      components.each_with_index do |c, i|
+        reconstructed = reconstructed.zip(c.map { |x| x * projections[i] }).map { |a, b| a + b }
+      end
+
+      # 残差の計算
+      residual = v.zip(reconstructed).map { |a, b| a - b }
+
+      # 残差のノルム二乗（sqrtを避けてgenericさを向上）
+      residual_norm_sq = residual.map { |x| x * x }.sum
+
+      { point: v, projections: projections, residual_norm_sq: residual_norm_sq }
+    end
+
+    if threshold_sq.nil?
+      norms_sq = results.map { |r| r[:residual_norm_sq] }
+      mean_sq = norms_sq.sum / norms_sq.size.to_f
+      # 標準偏差の計算（二乗和）
+      variance = norms_sq.map { |x| (x - mean_sq) ** 2 }.sum / norms_sq.size.to_f
+      std_sq = variance  # sqrt不要：二乗のまま比較
+      threshold_sq = mean_sq + 9.0 * std_sq  # (mean + 3*std)^2 ≈ mean_sq + 9*std_sq（近似）
+    end
+
+    results.each { |r| r[:in_inside_by_residual] = (r[:residual_norm_sq] <= threshold_sq) }
+    results.each { |r| r[:residual_threshold_sq] = threshold_sq }
+    results
   end
 end
+
+# ====================================================================
+# デフォルト MathContext の登録
+# ====================================================================
+
+# Float型用の定数（静的値）
+SpectreMath.register_math_context(
+  ["Float", "Integer", "Rational"],  # Floatとその他の通常精度型
+  singularity_threshold: 1e-12,      # ゼロ判定用
+  convergence_epsilon: 1e-10,        # 収束判定用
+  geometric_tolerance: 1e-6          # 幾何判定用
+)
+
+# BigDecimal型用の定数（動的lambda - HighPrecisionMathモジュール内の変数を参照）
+if HIGHPRECISION_AVAILABLE
+  SpectreMath.register_math_context(
+    ["BigDecimal"],
+    singularity_threshold: -> { HighPrecisionMath.class_variable_get(:@@singularity_threshold) },
+    convergence_epsilon: -> { HighPrecisionMath.class_variable_get(:@@convergence_epsilon) },
+    geometric_tolerance: -> { HighPrecisionMath.class_variable_get(:@@geometric_tolerance) }
+  )
+end
+
 
 module SpectreGeometry
   module_function
@@ -127,9 +282,17 @@ module SpectreGeometry
   # --- 点内包判定 (Point inside Polygon) ---
   # my_spectre_coordinateAnalyzer_keyed.rb からの移植
   # 境界線上や頂点上の判定、縮退した多角形(点、線分)への対応を含むロバスト版
-
-  def point_inside_polygon?(pt, polygon, tol = 1e-6)
+  #
+  # @param pt [Array<Numeric>] 判定する点 [x, y]
+  # @param polygon [Array<Array<Numeric>>] 多角形の頂点リスト
+  # @param tol [Numeric, nil] 許容誤差。nilの場合は pt の型から自動取得
+  # @return [Boolean] 点が多角形内部にあるか（境界上を含む）
+  def point_inside_polygon?(pt, polygon, tol = nil)
     x, y = pt
+    # 型ベースのコンテキストから許容誤差を取得
+    if tol.nil? # pt の要素の型を判定（配列の最初の要素を代表とする）
+      tol = SpectreMath.get_math_context(x.class.name, SpectreMath::GEOMETRIC_TOLERANCE)
+    end
 
     if polygon.nil? || polygon.empty?
       return false
@@ -191,19 +354,37 @@ module SpectreGeometry
     # 2. 内部判定 (Ray Casting)
     inside = false
     j = polygon.size - 1
+
+    # ゼロ除算回避用の小さな値を型に応じて取得
+    epsilon_zero = SpectreMath.get_math_context(x.class.name, SpectreMath::SINGULARITY_THRESHOLD)
+
     polygon.each_with_index do |point_i, i|
       point_j = polygon[j]
       xi, yi = point_i
       xj, yj = point_j
 
       if ((yi > y) != (yj > y))
-        x_int = (xj - xi) * (y - yi) / (yj - yi + 1e-10) + xi
+        x_int = (xj - xi) * (y - yi) / (yj - yi + epsilon_zero) + xi
         inside = !inside if x <= x_int + tol
       end
       j = i
     end
 
     inside
+  end
+
+  # Helper: project 4D point to 2D using two basis vectors (each 4-d)
+  # Generic implementation: works with Integer, Float, BigDecimal, Vector
+  def project_to_2d(point4, basis2)
+    b0 = basis2[0]
+    b1 = basis2[1]
+    v = point4
+
+    # 内積計算（型を統一せず、Rubyの型自動昇格に任せる）
+    x = v.zip(b0).map { |a, b| a * b }.sum
+    y = v.zip(b1).map { |a, b| a * b }.sum
+
+    [x, y]
   end
 end
 
@@ -283,10 +464,11 @@ class StatisticsManager
 
   def valid?(shape)
     stats = @groups[shape.group_key]
-    # 統計情報がないグループがもし在ったら、実装不良として、中断
-    raise NotImplementedError, "#{self.class} must set StatisticsManager to GroupStatistics before Valid?"
-    # ここでは「制約なし」として有効とする
-    # return true unless stats
+    # 統計情報がないグループがもし在ったら、警告して制約なしとして扱う
+    unless stats
+      STDERR.puts "⚠️ 警告: グループ #{shape.group_key} の統計情報が見つかりません"
+      return true
+    end
 
     # 形状の全頂点についてチェック
     shape.vertices.all? { |v| stats.valid?(v) }
@@ -305,6 +487,19 @@ class GroupStatistics
   # 頂点座標を与えられて、その形状が有効かどうかを返す
   def valid?(data_point)
     raise NotImplementedError, "#{self.class} must implement #valid?"
+  end
+
+  private
+
+  def project_to_2d(points)
+    points.map { |pt| project_point_to_2d(pt) }
+  end
+
+  def project_point_to_2d(point)
+    # 基底ベクトルとの内積をとって2D座標に変換（型に依存しない）
+    x = point.inner_product(Vector.elements(@basis_vectors[0]))
+    y = point.inner_product(Vector.elements(@basis_vectors[1]))
+    [x, y]
   end
 end
 
@@ -344,27 +539,58 @@ class PCAGroupStatistics < GroupStatistics
 
     true
   end
-
-  private
-
-  def project_to_2d(points)
-    points.map { |pt| project_point_to_2d(pt) }
-  end
-
-  def project_point_to_2d(point)
-    # 基底ベクトルとの内積をとって2D座標に変換
-    x = point.inner_product(Vector.elements(@basis_vectors[0]))
-    y = point.inner_product(Vector.elements(@basis_vectors[1]))
-    [x, y]
-  end
 end
 
 # --- StrictCASPrGroupStatistics クラス ---
 # CASPr理論に基づく厳密な判定（プレースホルダー）
+# strict_caspr_group_statistics.rb
+require_relative "strict_caspr/my_snf_file_wrapper"
+require_relative "strict_caspr/my_return_module"
+require_relative "strict_caspr/my_star_map"
+require_relative "strict_caspr/my_acceptance_window"
+
 class StrictCASPrGroupStatistics < GroupStatistics
-  def valid?(data_point)
-    # TODO: CASPr理論に基づく厳密な判定を実装
-    true
+  def initialize(group_key, data_points)
+    super(group_key, data_points)
+
+    # 1. SNF (Python) を、group_key毎に1回だけ呼ぶ
+    rows = data_points.map(&:to_a)
+    snf_out = SNFFileWrapper.compute_snf_basis!(group_key, rows)
+
+    # 2. ReturnModule（整数格子の基底）
+    @return_module = ReturnModule.new(snf_out["return_module"])
+
+    # 3. StarMap（二つの dual basis）
+    @star_map = StarMap.new(snf_out["dual_basis"])  # 4×2
+
+    # 4. Window：既存点を内部空間に写して凸包を作る
+    proj_points = rows.map { |r| @star_map.project(Vector[*r]) }
+    @window_polygon = CASPrWindow.convex_hull(proj_points)
+  end
+
+  def valid?(data_point)    vec = Vector[*data_point.to_a]
+
+    # SNF return-module の性質により
+    # 表現できない場合（= 無効点）を排除する
+    coeff = @return_module.project_integer(vec)
+    reconstructed = reconstruct(coeff)
+    return false unless reconstructed == vec
+
+    # 内部空間のウィンドウ判定
+    proj = @star_map.project(vec)
+    CASPrWindow.inside?(proj, @window_polygon)
+  end
+
+  private
+
+  # coeff: return-module integer coords
+  def reconstruct(coeff)
+    # Σ coeff[i] * basis[i] として復元（SNF なら厳密一致）
+    sum = Vector[0,0,0,0]
+    coeff.each_with_index do |k,i|
+      sum += @return_module.basis[i] * k
+    end
+    sum
   end
 end
 
@@ -412,7 +638,6 @@ class ShapesUnitInfo
     raise NotImplementedError, "#{self.class} must implement #children"
   end
 
-
 end
 
 # --- ShapeInfo クラス ---
@@ -420,7 +645,7 @@ end
 # ShapesUnitInfo を継承し、単一のSpectre図形を表現
 
 class ShapeInfo < ShapesUnitInfo
-  attr_reader :vertices, :centroid, :angle, :scale
+  attr_reader :vertices, :centroid, :angle, :scale, :shape_id
   attr_accessor :invalid_connect_from
 
   # クラス変数: 有効なパターンのリスト（外部から設定可能）
@@ -434,11 +659,13 @@ class ShapeInfo < ShapesUnitInfo
     @@valid_patterns
   end
 
-  def initialize(vertices, angle = 0.0, scale = 1.0)
+  def initialize(vertices, angle = 0.0, scale = 1.0, shape_id: nil, group_key: nil)
     @vertices = vertices          # Array<Vector[a0, a1, b0, b1]>
     @centroid = calculate_centroid(vertices)
     @angle = angle                # Float
     @scale = scale                # Float
+    @shape_id = shape_id          # String or Integer (CSVのshape#)
+    @_group_key = group_key        # String or Integer (グループキー)
     @invalid_connect_from = []    # Array<Vector> (分岐元の重心)
   end
 
@@ -456,7 +683,7 @@ class ShapeInfo < ShapesUnitInfo
   end
 
   def group_key
-    "#{@angle.round(6)}-#{@scale.round(6)}"
+    @_group_key || "#{@angle.round(6)}-#{@scale.round(6)}"
   end
 
   def children
@@ -548,9 +775,10 @@ end
 # 外部データソース（Generator, CSV）からデータを読み込み、
 # 統計情報の構築やパターンの抽出を行う
 class SpectreDataLoader
-  attr_reader :shapes_by_key, :statistics_manager
+ attr_reader :shapes_by_key, :statistics_manager
 
-  def initialize
+  def initialize(statistics_builder:)
+    @statistics_builder = statistics_builder  # Proc または callable object
     @shapes_by_key = Hash.new { |h, k| h[k] = [] }
     @statistics_manager = StatisticsManager.new
   end
@@ -578,6 +806,52 @@ class SpectreDataLoader
     puts "✅ データ分析完了: #{@shapes_by_key.size} グループ, #{ShapeInfo.valid_patterns.size} パターン"
   end
 
+  # === 省メモリヘルパーメソッド ===
+
+  # 全形状を列挙する（イテレータ）
+  # @yield [shape, shape_index] 形状と形状インデックス
+  def each_shape
+    return enum_for(:each_shape) unless block_given?
+
+    shape_index = 0
+    @shapes_by_key.each_value do |shapes|
+      shapes.each do |shape|
+        yield shape, shape_index
+        shape_index += 1
+      end
+    end
+  end
+
+  # 全頂点を列挙する（列挙子）
+  # @yield [vertex, vertex_index, shape_index] 頂点と頂点インデックスと形状インデックス
+  # @return [Enumerator] ブロックが渡されない場合は列挙子を返す
+  def each_vertices
+    return enum_for(:each_vertices) unless block_given?
+
+    each_shape do |shape, shape_index|
+      vertex_index = 0
+      shape.vertices.each do |v|
+        yield v, vertex_index, shape_index
+        vertex_index += 1
+      end
+    end
+  end
+
+  # 増殖の種にする、最初のN個の形状を取得（初期形状用）
+  # 特定のshape_idの形状を取得（初期形状用・推奨）
+  # @param ids [Array<String, Integer>] 取得するshape_idのリスト（デフォルト: ["0".."9"]）
+  # @return [Array<ShapeInfo>] 指定されたshape_idの形状リスト
+  def get_seeded_shapes(ids: (0..9).map(&:to_s))
+    all_shapes = @shapes_by_key.values.flatten
+
+    # shape_idでフィルタリング
+    seeded_shapes = ids.map do |id|
+      all_shapes.find { |shape| shape.shape_id.to_s == id.to_s }
+    end.compact
+
+    seeded_shapes
+  end
+
   private
 
   def extract_patterns
@@ -590,9 +864,8 @@ class SpectreDataLoader
         patterns << pattern
       end
     end
-    # 重複排除
-    unique_patterns = patterns.uniq { |pat| pat.map(&:to_a) }
-    ShapeInfo.valid_patterns = unique_patterns
+
+    ShapeInfo.valid_patterns = patterns.uniq { |pat| pat.map(&:to_a) }
   end
 
   def build_group_statistics
@@ -642,7 +915,8 @@ module SpectreDataEnumerators
         # 頂点数が14であることを確認（必要なら）
         if vertices.size == 14
           first = sorted_rows.first
-          y << ShapeInfo.new(vertices, first[:angle], first[:scale])
+          # shape_idを保存
+          y << ShapeInfo.new(vertices, first[:angle], first[:scale], shape_id: id)
         end
       end
     end
@@ -655,6 +929,9 @@ module SpectreDataEnumerators
       # generator の内部メソッドに依存するため、generator が公開しているメソッドを使用するか、
       # 必要な情報を取得できる前提
 
+      # shape_id カウンター
+      shape_id_counter = 0
+
       # 注: ここでは generator.generate のブロック引数の仕様に合わせて実装
       generator.generate(generations) do |n, tilesHash|
         next if n == 0 # 0世代目はスキップなど、必要に応じて調整
@@ -666,29 +943,32 @@ module SpectreDataEnumerators
           # strategy を使って頂点を計算する流れを想定
 
           # generator から strategy を取得（アクセサがあれば）
-          strategy = generator.strategy
+          strategy = generator.instance_variable_get(:@strategy)
+          # 頂点生成ロジック (Spectreの14頂点)
+          # Edge_a, Edge_b は generator から取得
+          edge_a = generator.instance_variable_get(:@edge_a) || 1.0
+          edge_b = generator.instance_variable_get(:@edge_b) || 1.0
+          spectre_points = strategy.define_spectre_points(edge_a, edge_b)
+          mystic_points = strategy.define_mystic_points(spectre_points)
 
           tile.for_each_tile(strategy.identity_transform) do |transform, label, parent_info|
-            # 頂点生成ロジック (Spectreの14頂点)
-            # Edge_a, Edge_b は定数または generator から取得
-            edge_a = 1.0
-            edge_b = 1.0
-            spectre_points = strategy.define_spectre_points(edge_a, edge_b)
-
             # transform を適用して座標変換
-            vertices = spectre_points.map do |pt|
-              trans_pt = strategy.transform_point(transform, pt)
-              # 内部係数 (a0, a1, b0, b1) に変換
-              coefs = strategy.to_internal_coefficients(trans_pt)
-              Vector[*coefs[0..3]]
-            end
+            vertices = (if label == 'Gamma2'
+              then
+                mystic_points
+              else
+                spectre_points
+              end
+            ).map {|pt| strategy.transform_point(transform, pt).vector}
 
             # angle, scale の取得
             angle, scale = strategy.get_angle_from_transform(transform)
             # angle が '?' の場合の処理などが必要
             angle_val = (angle == '?') ? 0.0 : angle.to_f
 
-            y << ShapeInfo.new(vertices, angle_val, scale)
+            # ShapeInfoを生成（shape_idを付与）
+            y << ShapeInfo.new(vertices, angle_val, scale, shape_id: shape_id_counter.to_s)
+            shape_id_counter += 1
           end
         end
       end
@@ -892,9 +1172,206 @@ if __FILE__ == $0
   puts "  ✓ パターン設定完了: #{ShapeInfo.valid_patterns.size} 個"
   puts "  ✓ 生成された候補: #{candidates.size} 個 (フィルタリング後)"
 
-  puts "\n✅ すべてのインターフェーステストが完了しました！"
-  puts "📝 改善点:"
-  puts "   - GroupStatisticsによる生成時フィルタリングを実装"
-  puts "   - near_shapes_candidatesがvalidな候補のみを返す"
-  puts "   - 探索ループから重複チェックを削除し高速化"
+  # --- 追加デモ: test_data_int に対する in_inside / is_extra 判定デモ ---
+  puts "\n--- Demo: test_data_int classification (projection residual / convex-hull) ---"
+
+  # サンプル整数データ（以前の test_data_int 相当）
+  test_data_int = [
+   [ 0, 0, 0, 0],
+   [ 2, -1, 0, 0],
+   [ 1, 1, -1, 2],
+   [ 2, -1, -1, 2],
+   [ 1, -2, -1, 2],
+   [ 3, -3, -2, 1],
+   [ 1, -2, -2, 1],
+   [ 0, -3, 1, -2],
+   [ 0, 0, -1, -1],
+   [-4, -4, 4, -5],
+   [-3, -3, 4, -5],
+   [-5, -2, 5, -4],
+   [-3, -3, 5, -4],
+   [-2, -5, 5, -4],
+   [-1, -4, 3, -3],
+   [-2, -5, 3, -3],
+   [-1, -7, 3, -6],
+   [-4, -4, 2, -4],
+   [-11, 1, 8, -4],
+   [-10, 2, 8, -4],
+   [-12, 3, 9, -3],
+   [-10, 2, 9, -3],
+   [-9, 0, 9, -3],
+   [-8, 1, 7, -2],
+   [-9, 0, 7, -2],
+   [-8, -2, 7, -5],
+   [-11, 1, 6, -3],
+   [-7, -7, 7, -8],
+   [-8, -5, 7, -8],
+   [-9, -6, 9, -9],
+   [-8, -5, 9, -9],
+   [-6, -6, 9, -9],
+   [-7, -4, 8, -7],
+   [-6, -6, 8, -7],
+   [-4, -7, 5, -7],
+   [-7, -7, 6, -6]
+  ]
+
+  # 1) グループPCAで得た基底（ここでは簡易: 全データでPCAを実行して上位2軸を採用）
+  data_float = test_data_int.map { |r| r.map(&:to_f) }
+  basis2 = SpectreMath.pca_components(data_float, 2, "demo") # returns two 4-d vectors (small-eig in implementation)
+  if basis2.nil? || basis2.empty?
+    # フォールバック: 単位ベクトルを使う（安全策）
+    basis2 = [[1.0,0.0,0.0,0.0], [0.0,1.0,0.0,0.0]]
+  end
+
+  # 2) 凸包（2D射影上）作成
+  proj_points = data_float.map { |pt| SpectreGeometry.project_to_2d(pt, basis2) }
+  hull = SpectreGeometry.compute_convex_hull(proj_points)
+
+  # 3) 射影残差分類（閾値自動設定）
+  proj_class_results = SpectreMath.classify_by_projection(data_float, basis2, threshold_sq: nil)
+
+  # 4) 凸包内判定（2D射影）
+  hull_results = proj_points.map { |p2| SpectreGeometry.point_inside_polygon?(p2, hull) }
+
+  # 5) 結合判定と出力（1行毎）
+  puts "Idx, point (a0,a1,b0,b1), proj(x|y), residual_norm_sq, in_by_residual, in_by_hull, final_in_inside/is_extra"
+  proj_class_results.each_with_index do |r, i|
+    p = r[:point]
+    proj_xy = proj_points[i]
+    residual_norm_sq = r[:residual_norm_sq]  # 2乗のまま
+    residual_norm = Math.sqrt(residual_norm_sq)  # 出力用に平方根を取る
+    in_res = r[:in_inside_by_residual] ? "IN" : "OUT"
+    in_hull = hull_results[i] ? "IN" : "OUT"
+    # 最終判定: 両方のメソッドでINなら in_inside, どちらもOUTなら is_extra, 片方のみINは borderline → treat as IN
+    final = (r[:in_inside_by_residual] || hull_results[i]) ? "in_inside" : "is_extra"
+
+    puts "#{i+1}, [#{p.join(',')}], (#{'%.4f' % proj_xy[0]}|#{'%.4f' % proj_xy[1]}), #{'%.6f' % residual_norm}, #{in_res}, #{in_hull}, #{final}"
+  end
+
+  puts "\nDemo complete. Legend: final=in_inside  (accepted), is_extra (rejected)"
+
+  # ============================================================
+  # 【追加】高精度PCA vs 通常PCA の精度差異検証
+  # ============================================================
+  if HIGHPRECISION_AVAILABLE
+    puts "\n" + "=" * 140
+    puts "【追加テスト】高精度PCA (HighPrecisionMath) vs 通常PCA (SpectreMath) の精度差異検証"
+    puts "=" * 140
+
+    # テスト用整数データ（既に定義済みの test_data_int を再利用）
+    puts "\n📊 テストデータ: test_data_int (#{test_data_int.size}点)"
+    puts "   特徴: 整数座標のみ、値域が大きい（-12～3）"
+
+    # ======== 1. 通常PCA (Float版) の実行 ========
+    puts "\n【1】通常PCA (SpectreMath.pca_components - Float版)"
+    data_float = test_data_int.map { |r| r.map(&:to_f) }
+    basis_standard = SpectreMath.pca_components(data_float, 2, "standard_pca")
+    puts "  基底ベクトル数: #{basis_standard.size}"
+    puts "  基底[0]: #{basis_standard[0].map { |x| format('%.10f', x) }.inspect}"
+    puts "  基底[1]: #{basis_standard[1].map { |x| format('%.10f', x) }.inspect}"
+
+    # --- 追加: 通常PCA の直交性 / ゼロベクトルチェック ---
+    orth_tol = SpectreMath.get_math_context(data_float[0][0].class.name, SpectreMath::SINGULARITY_THRESHOLD)
+    zero_tol = SpectreMath.get_math_context(data_float[0][0].class.name, SpectreMath::SINGULARITY_THRESHOLD)
+    # 内積（直交性）
+    dot_std = basis_standard[0].zip(basis_standard[1]).map { |a, b| a * b }.sum
+    norm0 = Math.sqrt(basis_standard[0].map { |x| x**2 }.sum)
+    norm1 = Math.sqrt(basis_standard[1].map { |x| x**2 }.sum)
+    puts "  [CHECK] 通常PCA: 内積(基底0·基底1) = #{format('%.12e', dot_std)}"
+    puts "  [CHECK] 通常PCA: ノルム = (#{format('%.12e', norm0)}, #{format('%.12e', norm1)})"
+    if norm0 < zero_tol || norm1 < zero_tol
+      puts "  ❌ 警告: 通常PCA の基底にゼロベクトルまたはほぼゼロのベクトルが含まれます (norm < #{zero_tol})"
+    elsif dot_std.abs > orth_tol
+      puts "  ⚠️ 警告: 通常PCA の基底は十分に直交していません (|dot| > #{orth_tol})"
+    else
+      puts "  ✅ 通常PCA の基底は概ね直交しています (|dot| <= #{orth_tol})"
+    end
+
+    # ======== 2. 高精度PCA (BigDecimal版) の実行 ========
+    puts "\n【2】高精度PCA (HighPrecisionMath.high_precision_pca_int - BigDecimal版)"
+    HighPrecisionMath.set_scale(200)  # 200桁精度に設定
+    components_hp, lambdas_hp = HighPrecisionMath.high_precision_pca_int(test_data_int, 2, "highprecision_pca")
+    basis_hp = components_hp
+    puts "  基底ベクトル数: #{basis_hp.size}"
+    puts "  基底[0]: #{basis_hp[0].map { |x| format('%.10f', x.to_f) }.inspect}"
+    puts "  基底[1]: #{basis_hp[1].map { |x| format('%.10f', x.to_f) }.inspect}"
+    puts "  固有値[0]: #{format('%.10e', lambdas_hp[0].to_f)}"
+    puts "  固有値[1]: #{format('%.10e', lambdas_hp[1].to_f)}"
+
+    # --- 追加: 高精度PCA（float変換版） の直交性 / ゼロベクトルチェック ---
+    basis_hp_float = basis_hp.map { |v| v.map(&:to_f) }
+    dot_hp = basis_hp_float[0].zip(basis_hp_float[1]).map { |a, b| a * b }.sum
+    norm_hp0 = Math.sqrt(basis_hp_float[0].map { |x| x**2 }.sum)
+    norm_hp1 = Math.sqrt(basis_hp_float[1].map { |x| x**2 }.sum)
+    puts "  [CHECK] 高精度PCA: 内積(基底0·基底1) = #{format('%.12e', dot_hp)}"
+    puts "  [CHECK] 高精度PCA: ノルム = (#{format('%.12e', norm_hp0)}, #{format('%.12e', norm_hp1)})"
+    if norm_hp0 < zero_tol || norm_hp1 < zero_tol
+      puts "  ❌ 警告: 高精度PCA の基底にゼロベクトルまたはほぼゼロのベクトルが含まれます (norm < #{zero_tol})"
+    elsif dot_hp.abs > orth_tol
+      puts "  ⚠️ 警告: 高精度PCA の基底は十分に直交していません (|dot| > #{orth_tol})"
+    else
+      puts "  ✅ 高精度PCA の基底は概ね直交しています (|dot| <= #{orth_tol})"
+    end
+
+    # ======== 3. 基底ベクトルの差異を符号不変で定量化（変更） ========
+    puts "\n【3】基底ベクトルの差異評価（符号不変）"
+
+    # ヘルパ: ベクトル正規化
+    normalize_vec = ->(v) {
+      mag = Math.sqrt(v.map { |x| x**2 }.sum)
+      mag.zero? ? v : v.map { |x| x / mag }
+    }
+
+    diffs = []
+    sign_flips = []
+
+    (0...2).each do |i|
+      std_v = normalize_vec.call(basis_standard[i])
+      hp_v = normalize_vec.call(basis_hp_float[i])
+
+      diff_direct = std_v.zip(hp_v).map { |a, b| (a - b).abs }.max
+      diff_neg = std_v.zip(hp_v.map { |x| -x }).map { |a, b| (a - b).abs }.max
+
+      if diff_neg < diff_direct
+        diffs << diff_neg
+        sign_flips << true
+      else
+        diffs << diff_direct
+        sign_flips << false
+      end
+    end
+
+    puts "  基底差分 (符号考慮済): 基底[0]=#{format('%.10e', diffs[0])}, 基底[1]=#{format('%.10e', diffs[1])}"
+    puts "  符号反転検出: 基底[0]=#{sign_flips[0] ? 'YES' : 'NO'}, 基底[1]=#{sign_flips[1] ? 'YES' : 'NO'}"
+
+    # 固有値（小さい順）の比較（符号や並びの確認）
+    # 標準PCAの固有値を再計算して比較（float版）
+    m = data_float.size
+    mean = Vector.elements(data_float.transpose.map { |col| col.sum / m.to_f })
+    centered = data_float.map { |row| Vector.elements(row) - mean }
+    cov_matrix = Matrix.zero(4)
+    centered.each { |v| cov_matrix += SpectreMath.outer_product(v, v) }  # ← 変更: outer_product -> SpectreMath.outer_product
+    cov_matrix /= m.to_f
+    eig_std = cov_matrix.eigen
+    lambdas_std_sorted = eig_std.eigenvalues.map(&:to_f).sort_by(&:abs).first(2)
+    lambdas_hp_f = lambdas_hp.map(&:to_f)
+
+    puts "\n  固有値（小さい順）: 標準PCA=#{lambdas_std_sorted.map { |x| format('%.10e', x) }}, 高精度PCA=#{lambdas_hp_f.map { |x| format('%.10e', x) }}"
+
+    lambda_diffs = lambdas_std_sorted.zip(lambdas_hp_f).map { |a, b| (a - b).abs }
+    puts "  固有値差分: #{lambda_diffs.map { |d| format('%.10e', d) }.join(', ')}"
+
+    if diffs.all? { |d| d < SpectreMath.get_math_context(diffs[0].class.name, SpectreMath::CONVERGENCE_EPSILON) } &&
+       lambda_diffs.all? { |d| d < SpectreMath.get_math_context(lambda_diffs[0].class.name, SpectreMath::CONVERGENCE_EPSILON) }
+      puts "  ✅ 基底・固有値は実質一致（符号反転を除く）"
+    else
+      puts "  ⚠️ 基底または固有値に有意な差異あり（符号反転は許容）"
+    end
+
+  else
+    puts "\n【追加テスト：スキップ】"
+    puts "  HighPrecisionMath モジュールが利用不可"
+    puts "  詳細テストを実行するには HighPrecisionMath/HighPrecisionMath.rb を配置してください"
+  end
+
 end # main
