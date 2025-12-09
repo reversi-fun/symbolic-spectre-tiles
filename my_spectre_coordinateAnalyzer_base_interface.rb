@@ -160,8 +160,12 @@ module SpectreMath
     sorted = eig.eigenvalues.zip(eig.eigenvectors)
                 .sort_by { |val, _| val.abs }
 
-    # 小さい固有値に対応する固有ベクトルを抽出
-    sorted.first(n_components).map { |_, vec| vec.to_a }
+    # 小さい固有値に対応する固有ベクトルと固有値を抽出
+    extracted = sorted.first(n_components)
+    components = extracted.map { |_, vec| vec.to_a }
+    eigenvalues = extracted.map { |val, _| val }
+
+    [components, eigenvalues]
   end
 
   # --- 最小二乗法 (Least Squares) ---
@@ -499,7 +503,8 @@ class GroupStatistics
     # 基底ベクトルとの内積をとって2D座標に変換（型に依存しない）
     x = point.inner_product(Vector.elements(@basis_vectors[0]))
     y = point.inner_product(Vector.elements(@basis_vectors[1]))
-    [x, y]
+    # [x, y]
+    [x.to_f, y.to_f]
   end
   # 構造化レポート出力 (JSON風)
   # @param io [IO] 出力先ストリーム
@@ -529,7 +534,8 @@ class PCAGroupStatistics < GroupStatistics
     @knn_k = knn_k
 
     # PCA計算
-    @basis_vectors = SpectreMath.pca_components(data_points.map(&:to_a), 2, group_key)
+    # components: 固有ベクトル(基底), lambdas: 固有値
+    @basis_vectors, _lambdas = SpectreMath.pca_components(data_points.map(&:to_a), 2, group_key)
 
     # 2D射影と凸包計算
     projected_2d = project_to_2d(data_points)
@@ -586,6 +592,7 @@ if defined?(HIGHPRECISION_AVAILABLE) && HIGHPRECISION_AVAILABLE
       @data_points = data_points
       @knn_k = knn_k
 
+      # p ["debug at HighPrecisionPCAGroupStatistics#initialize: data_points", @data_points[0], @data_points[0][1].class.name]
       # データを HighPrecisionMath 用の形式 (Array of Arrays) に変換
       # data_points は Vector の配列
       rows = data_points.map(&:to_a)
@@ -602,9 +609,11 @@ if defined?(HIGHPRECISION_AVAILABLE) && HIGHPRECISION_AVAILABLE
       # project_to_2d は @basis_vectors を使用するため、これにより高精度な射影が行われる
       projected_2d = project_to_2d(data_points)
       @acceptance_domain = SpectreGeometry.compute_convex_hull(projected_2d)
+      # p ["debug at HighPrecisionPCAGroupStatistics#initialize: acceptance_domain", @acceptance_domain]
 
       # KDTreeの構築 (KNN探索用) - 必要なら
       @kdtree = KDTree.new(projected_2d) if knn_k > 0
+      # p ["debug at HighPrecisionPCAGroupStatistics#initialize: kdtree", @kdtree]
     end
 
     def report(io = $stdout, indent = 0)
@@ -975,7 +984,7 @@ class SpectreDataLoader
     # 3. ShapesUnitInfo への登録
     ShapesUnitInfo.statistics_manager = @statistics_manager
 
-    puts "✅ データ分析完了: #{@shapes_by_key.size} グループ, #{ShapeInfo.valid_patterns.size} パターン"
+    # puts "✅ データ分析完了: #{@shapes_by_key.size} グループ, #{ShapeInfo.valid_patterns.size} パターン"
   end
 
   # === 省メモリヘルパーメソッド ===
@@ -1072,8 +1081,8 @@ module SpectreDataEnumerators
 
         # 必要なカラムのパース
         coord = ['pt0-coef:a0', 'a1', 'b0', 'b1'].map { |c| row[c].to_f }
-        angle = row['angle'].to_f
-        scale = row['scale_y'].to_f
+        angle = row['angle'] #.to_f
+        scale = row['scale_y'] #.to_f
         idx = row['vertex_index'].to_i
 
         rows_by_shape[shape_id] << { idx: idx, coord: Vector[*coord], angle: angle, scale: scale }
@@ -1137,10 +1146,13 @@ module SpectreDataEnumerators
             # angle, scale の取得
             angle, scale = strategy.get_angle_from_transform(transform)
             # angle が '?' の場合の処理などが必要
-            angle_val = (angle == '?') ? 0.0 : angle.to_f
+            # angle_val = (angle == '?') ? 0.0 : angle.to_f
 
             # ShapeInfoを生成（shape_idを付与）
-            y << ShapeInfo.new(vertices, angle_val, scale, shape_id: shape_id_counter.to_s)
+            y << ShapeInfo.new(vertices, angle, scale,
+               shape_id: shape_id_counter.to_s
+              #  group_key: "gen#{n}:#{angle}-#{scale}",
+              )
             shape_id_counter += 1
           end
         end
@@ -1218,11 +1230,9 @@ module SpectreRules
       visited << shape.centroid
       candidates << shape
       debug_stats[:shapes_by_group][shape.group_key] += 1 if shape.respond_to?(:group_key)
-
       shape.vertices.each { |v| generated_coords_set << v.to_a }
 
-      # Shape#0 は探索済みとし、それ以外をキューに入れる (慣例)
-      queue.push(shape) if i > 0
+      queue.push(shape)
     end
 
     puts "\n🚀 汎用探索ループを開始します..."
@@ -1535,24 +1545,241 @@ if __FILE__ == $0
 [-23, 16, 7, -17],
 [-24, 18, 8, -19],
 [-23, 16, 8, -19],
-[-24, 15, 5, -19]
+[-24, 15, 5, -19],
+[82, -46, -11, 58],
+[82, -46, -11, 57],
+[81, -45, -11, 57],
+[80, -45, -11, 57],
+[79, -45, -11, 57],
+[79, -46, -11, 57],
+[79, -46, -12, 58],
+[80, -46, -10, 57],
+[79, -45, -10, 57],
+[79, -44, -10, 57],
+[79, -44, -9, 56],
+[79, -44, -9, 55],
+[78, -43, -9, 55],
+[77, -43, -9, 55],
+[77, -43, -10, 55],
+[77, -43, -11, 56],
+[77, -44, -11, 56],
+[78, -45, -11, 56],
+[79, -46, -11, 56],
+[80, -46, -11, 56],
+[80, -46, -10, 56],
+[78, -44, -12, 56],
+[79, -45, -12, 56],
+[79, -46, -12, 56],
+[79, -46, -13, 57],
+[79, -46, -13, 58],
+[80, -47, -13, 58],
+[81, -47, -13, 58],
+[81, -47, -12, 58],
+[81, -47, -11, 57],
+[81, -46, -11, 57],
+[80, -45, -11, 57],
+[79, -44, -11, 57],
+[78, -44, -11, 57],
+[78, -44, -12, 57],
+[84, -50, -13, 60],
+[83, -50, -13, 60],
+[82, -49, -13, 60],
+[82, -49, -13, 59],
+[82, -49, -14, 59],
+[81, -49, -14, 59],
+[81, -50, -14, 59],
+[81, -50, -15, 60],
+[81, -50, -15, 61],
+[82, -51, -15, 61],
+[83, -51, -15, 61],
+[84, -51, -15, 61],
+[84, -50, -15, 61],
+[84, -50, -14, 60],
+[83, -49, -12, 59],
+[82, -48, -12, 59],
+[82, -47, -12, 59],
+[82, -47, -11, 58],
+[82, -47, -11, 57],
+[81, -46, -11, 57],
+[80, -46, -11, 57],
+[80, -46, -12, 57],
+[80, -46, -13, 58],
+[80, -47, -13, 58],
+[81, -48, -13, 58],
+[82, -49, -13, 58],
+[83, -49, -13, 58],
+[83, -49, -12, 58],
+[82, -48, -12, 59],
+[81, -47, -12, 59],
+[81, -46, -12, 59],
+[81, -46, -11, 58],
+[81, -46, -11, 57],
+[80, -45, -11, 57],
+[79, -45, -11, 57],
+[79, -45, -12, 57],
+[79, -45, -13, 58],
+[79, -46, -13, 58],
+[80, -47, -13, 58],
+[81, -48, -13, 58],
+[82, -48, -13, 58],
+[82, -48, -12, 58],
+[81, -45, -11, 57],
+[81, -46, -11, 57],
+[80, -46, -11, 57],
+[80, -46, -12, 57],
+[80, -46, -13, 58],
+[80, -47, -13, 58],
+[81, -48, -13, 58],
+[81, -48, -13, 59],
+[81, -48, -12, 59],
+[82, -48, -12, 59],
+[82, -47, -12, 59],
+[82, -46, -12, 59],
+[81, -45, -12, 59],
+[81, -45, -12, 58],
+[80, -44, -11, 57],
+[80, -45, -11, 57],
+[79, -45, -11, 57],
+[79, -45, -12, 57],
+[79, -45, -13, 58],
+[79, -46, -13, 58],
+[80, -47, -13, 58],
+[80, -47, -13, 59],
+[80, -47, -12, 59],
+[81, -47, -12, 59],
+[81, -46, -12, 59],
+[81, -45, -12, 59],
+[80, -44, -12, 59],
+[80, -44, -12, 58],
+[82, -49, -13, 60],
+[81, -48, -13, 60],
+[81, -47, -13, 60],
+[81, -47, -12, 59],
+[81, -47, -12, 58],
+[80, -46, -12, 58],
+[79, -46, -12, 58],
+[79, -46, -13, 58],
+[79, -46, -14, 59],
+[79, -47, -14, 59],
+[80, -48, -14, 59],
+[81, -49, -14, 59],
+[82, -49, -14, 59],
+[82, -49, -13, 59],
+[81, -46, -10, 58],
+[80, -45, -10, 58],
+[80, -44, -10, 58],
+[80, -44, -9, 57],
+[80, -44, -9, 56],
+[79, -43, -9, 56],
+[78, -43, -9, 56],
+[78, -43, -10, 56],
+[78, -43, -11, 57],
+[78, -44, -11, 57],
+[79, -45, -11, 57],
+[80, -46, -11, 57],
+[81, -46, -11, 57],
+[81, -46, -10, 57],
+[77, -42, -10, 55],
+[78, -43, -10, 55],
+[78, -44, -10, 55],
+[78, -44, -11, 56],
+[78, -44, -11, 57],
+[79, -45, -11, 57],
+[80, -45, -11, 57],
+[80, -45, -10, 57],
+[80, -45, -9, 56],
+[80, -44, -9, 56],
+[79, -43, -9, 56],
+[78, -42, -9, 56],
+[77, -42, -9, 56],
+[77, -42, -10, 56],
+[77, -44, -12, 56],
+[78, -44, -12, 56],
+[79, -45, -12, 56],
+[79, -45, -12, 57],
+[79, -45, -11, 57],
+[80, -45, -11, 57],
+[80, -44, -11, 57],
+[80, -44, -10, 56],
+[80, -44, -10, 55],
+[79, -43, -10, 55],
+[78, -43, -10, 55],
+[77, -43, -10, 55],
+[77, -44, -10, 55],
+[77, -44, -11, 56],
+[83, -51, -14, 60],
+[82, -50, -14, 60],
+[82, -49, -14, 60],
+[82, -49, -13, 59],
+[82, -49, -13, 58],
+[81, -48, -13, 58],
+[80, -48, -13, 58],
+[80, -48, -14, 58],
+[80, -48, -15, 59],
+[80, -49, -15, 59],
+[81, -50, -15, 59],
+[82, -51, -15, 59],
+[83, -51, -15, 59],
+[83, -51, -14, 59],
+[81, -47, -13, 58],
+[81, -48, -13, 58],
+[80, -48, -13, 58],
+[80, -48, -14, 58],
+[80, -48, -15, 59],
+[80, -49, -15, 59],
+[81, -50, -15, 59],
+[81, -50, -15, 60],
+[81, -50, -14, 60],
+[82, -50, -14, 60],
+[82, -49, -14, 60],
+[82, -48, -14, 60],
+[81, -47, -14, 60],
+[81, -47, -14, 59],
+[82, -46, -11, 57],
+[82, -47, -11, 57],
+[81, -47, -11, 57],
+[81, -47, -12, 57],
+[81, -47, -13, 58],
+[81, -48, -13, 58],
+[82, -49, -13, 58],
+[82, -49, -13, 59],
+[82, -49, -12, 59],
+[83, -49, -12, 59],
+[83, -48, -12, 59],
+[83, -47, -12, 59],
+[82, -46, -12, 59],
+[82, -46, -12, 58],
+[80, -45, -12, 57],
+[81, -46, -12, 57],
+[81, -47, -12, 57],
+[81, -47, -13, 58],
+[81, -47, -13, 59],
+[82, -48, -13, 59],
+[83, -48, -13, 59],
+[83, -48, -12, 59],
+[83, -48, -11, 58],
+[83, -47, -11, 58],
+[82, -46, -11, 58],
+[81, -45, -11, 58],
+[80, -45, -11, 58],
+[80, -45, -12, 58]
 
   ]
 
   # 1) グループPCAで得た基底（ここでは簡易: 全データでPCAを実行して上位2軸を採用）
-  data_float = test_data_int.map { |r| r.map(&:to_f) }
-  basis2 = SpectreMath.pca_components(data_float, 2, "demo") # returns two 4-d vectors (small-eig in implementation)
+  # data_float = test_data_int.map { |r| r.map(&:to_f) }
+  basis2, _ = SpectreMath.pca_components(test_data_int, 2, "demo") # returns two 4-d vectors (small-eig in implementation)
   if basis2.nil? || basis2.empty?
     # フォールバック: 単位ベクトルを使う（安全策）
     basis2 = [[1.0,0.0,0.0,0.0], [0.0,1.0,0.0,0.0]]
   end
 
   # 2) 凸包（2D射影上）作成
-  proj_points = data_float.map { |pt| SpectreGeometry.project_to_2d(pt, basis2) }
+  proj_points = test_data_int.map { |pt| SpectreGeometry.project_to_2d(pt, basis2) }
   hull = SpectreGeometry.compute_convex_hull(proj_points)
 
   # 3) 射影残差分類（閾値自動設定）
-  proj_class_results = SpectreMath.classify_by_projection(data_float, basis2, threshold_sq: nil)
+  proj_class_results = SpectreMath.classify_by_projection(test_data_int, basis2, threshold_sq: nil)
 
   # 4) 凸包内判定（2D射影）
   hull_results = proj_points.map { |p2| SpectreGeometry.point_inside_polygon?(p2, hull) }
@@ -1588,15 +1815,15 @@ if __FILE__ == $0
 
     # ======== 1. 通常PCA (Float版) の実行 ========
     puts "\n【1】通常PCA (SpectreMath.pca_components - Float版)"
-    data_float = test_data_int.map { |r| r.map(&:to_f) }
-    basis_standard = SpectreMath.pca_components(data_float, 2, "standard_pca")
+    # data_float = test_data_int.map { |r| r.map(&:to_f) }
+    basis_standard, _ = SpectreMath.pca_components(test_data_int, 2, "standard_pca")
     puts "  基底ベクトル数: #{basis_standard.size}"
     puts "  基底[0]: #{basis_standard[0].map { |x| format('%.10f', x) }.inspect}"
     puts "  基底[1]: #{basis_standard[1].map { |x| format('%.10f', x) }.inspect}"
 
     # --- 追加: 通常PCA の直交性 / ゼロベクトルチェック ---
-    orth_tol = SpectreMath.get_math_context(data_float[0][0].class.name, SpectreMath::SINGULARITY_THRESHOLD)
-    zero_tol = SpectreMath.get_math_context(data_float[0][0].class.name, SpectreMath::SINGULARITY_THRESHOLD)
+    orth_tol = SpectreMath.get_math_context(test_data_int[0][0].class.name, SpectreMath::SINGULARITY_THRESHOLD)
+    zero_tol = SpectreMath.get_math_context(test_data_int[0][0].class.name, SpectreMath::SINGULARITY_THRESHOLD)
     # 内積（直交性）
     dot_std = basis_standard[0].zip(basis_standard[1]).map { |a, b| a * b }.sum
     norm0 = Math.sqrt(basis_standard[0].map { |x| x**2 }.sum)
@@ -1630,18 +1857,19 @@ if __FILE__ == $0
     end
 
     # --- 追加: 高精度PCA（float変換版） の直交性 / ゼロベクトルチェック ---
-    basis_hp_float = basis_hp.map { |v| v.map(&:to_f) }
-    dot_hp = basis_hp_float[0].zip(basis_hp_float[1]).map { |a, b| a * b }.sum
-    norm_hp0 = Math.sqrt(basis_hp_float[0].map { |x| x**2 }.sum)
-    norm_hp1 = Math.sqrt(basis_hp_float[1].map { |x| x**2 }.sum)
-    puts "  [CHECK] 高精度PCA: 内積(基底0·基底1) = #{format('%.12e', dot_hp)}"
-    puts "  [CHECK] 高精度PCA: ノルム = (#{format('%.12e', norm_hp0)}, #{format('%.12e', norm_hp1)})"
+    # basis_hp_float = basis_hp.map { |v| v.map(&:to_f) }
+    dot_hp = basis_hp[0].zip(basis_hp[1]).map { |a, b| a * b }.sum
+    norm_hp0 = Math.sqrt(basis_hp[0].map { |x| x**2 }.sum)
+    norm_hp1 = Math.sqrt(basis_hp[1].map { |x| x**2 }.sum)
+    orth_tol_hp = SpectreMath.get_math_context(dot_hp.class.name, SpectreMath::SINGULARITY_THRESHOLD)
+    puts "  [CHECK] 高精度PCA: 内積(基底0·基底1) = #{format('%.12e', dot_hp.to_f)}"
+    puts "  [CHECK] 高精度PCA: ノルム = (#{format('%.12e', norm_hp0.to_f)}, #{format('%.12e', norm_hp1.to_f)})"
     if norm_hp0 < zero_tol || norm_hp1 < zero_tol
-      puts "  ❌ 警告: 高精度PCA の基底にゼロベクトルまたはほぼゼロのベクトルが含まれます (norm < #{zero_tol})"
-    elsif dot_hp.abs > orth_tol
-      puts "  ⚠️ 警告: 高精度PCA の基底は十分に直交していません (|dot| > #{orth_tol})"
+      puts "  ❌ 警告: 高精度PCA の基底にゼロベクトルまたはほぼゼロのベクトルが含まれます (norm < #{zero_tol.to_f})"
+    elsif dot_hp.abs > orth_tol_hp
+      puts "  ⚠️ 警告: 高精度PCA の基底は十分に直交していません (|dot| > #{orth_tol_hp.to_f})"
     else
-      puts "  ✅ 高精度PCA の基底は概ね直交しています (|dot| <= #{orth_tol})"
+      puts "  ✅ 高精度PCA の基底は概ね直交しています (|dot| <= #{orth_tol_hp.to_f})"
     end
 
     # ======== 3. 基底ベクトルの差異を符号不変で定量化（変更） ========
@@ -1658,7 +1886,7 @@ if __FILE__ == $0
 
     (0...2).each do |i|
       std_v = normalize_vec.call(basis_standard[i])
-      hp_v = normalize_vec.call(basis_hp_float[i])
+      hp_v = normalize_vec.call(basis_hp[i].map(&:to_f))
 
       diff_direct = std_v.zip(hp_v).map { |a, b| (a - b).abs }.max
       diff_neg = std_v.zip(hp_v.map { |x| -x }).map { |a, b| (a - b).abs }.max
@@ -1677,9 +1905,9 @@ if __FILE__ == $0
 
     # 固有値（小さい順）の比較（符号や並びの確認）
     # 標準PCAの固有値を再計算して比較（float版）
-    m = data_float.size
-    mean = Vector.elements(data_float.transpose.map { |col| col.sum / m.to_f })
-    centered = data_float.map { |row| Vector.elements(row) - mean }
+    m = test_data_int.size
+    mean = Vector.elements(test_data_int.transpose.map { |col| col.sum / m.to_f })
+    centered = test_data_int.map { |row| Vector.elements(row) - mean }
     cov_matrix = Matrix.zero(4)
     centered.each { |v| cov_matrix += SpectreMath.outer_product(v, v) }  # ← 変更: outer_product -> SpectreMath.outer_product
     cov_matrix /= m.to_f
