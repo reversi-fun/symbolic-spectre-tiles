@@ -1,7 +1,7 @@
 # ハイブリッドアルゴリズム 実装状況レポート
 
 **作成日時**: 2025-11-23 03:39  
-**最終更新**: 2025-12-05 04:00  
+**最終更新**: 2025-12-09 03:38  
 **対象ファイル**: my_spectre_coordinateAnalyzer_hybrid_v2.rb → my_spectre_coordinateAnalyzer.rb  
 **拡張インターフェース**: my_spectre_coordinateAnalyzer_base_interface.rb
 
@@ -244,11 +244,12 @@ Max_b0 = 52.0   # 初期形状のmax(b0) + relative_range_b0[1]
 | ClusterInfo クラス | ✅ | 複数図形クラスター表現、ShapesUnitInfo継承 |
 | GroupStatistics 抽象クラス | ✅ | グループ別統計検証の基底クラス |
 | PCAGroupStatistics クラス | ✅ | PCA+凸包+KNNによる検証実装 |
-| StrictCASPrGroupStatistics | ⚠️ | プレースホルダー実装（TODO） |
+| StrictCASPrGroupStatistics | ❌ | **SNFベース実装を試みたが不可能と判明**（→セクション7参照） |
 | StatisticsManager クラス | ✅ | グループキー別の統計管理 |
 | SpectreDataLoader クラス | ✅ | データ読み込み・分析の統合管理 |
 | SpectreDataEnumerators モジュール | ✅ | CSV/Generator対応の列挙子ファクトリ |
 | SpectreRules モジュール | ✅ | 汎用探索ロジック |
+| HighPrecisionMath モジュール | ✅ | 高精度演算モジュール |
 
 #### 主要機能の実装状況
 
@@ -308,7 +309,8 @@ Max_b0 = 52.0   # 初期形状のmax(b0) + relative_range_b0[1]
 |------|-------|------|
 | 共通基底検証 (common_basis) | 中 | hybrid_v2仕様では計画済み |
 | max_radius_sq (99%ile閾値) | 中 | hybrid_v2仕様では計画済み |
-| StrictCASPrGroupStatistics | 低 | CASPr理論に基づく厳密判定 |
+| StrictCASPrGroupStatistics | **実装不可** | SNF/Nullspace
+ベースの厳密判定を試みたが、セクション7の調査により理論的に不可能と判明。代替として幾何学的制約ベースの検証を検討中。 |
 | ClusterInfo.near_shapes_candidates | 中 | 置換ルールベースの候補生成 |
 | CSV 10カラム出力 | 低 | hybrid_v2仕様では計画済み |
 | デバッグ統計の拡充 | 低 | グループ別統計、効率分析 |
@@ -603,6 +605,16 @@ candidates_for_edge << candidate_shape
 - ✅ 縮小写像の数学的確認（最大特異値 < 1.0）
 - ✅ フラクタル性の示唆（Void Ratio > 5%）
 - ✅ 凸包判定の不十分性を実証
+- ✅ **PCA分析結果（セクション7）**: 99.996%が2次元 → **幾何学的には2次元構造が確認された**
+
+**セクション7（SNF調査）との関連**:
+- 当初、CASPr厳密検証のために**SNFベースの代数的手法**を検討
+- しかし、**代数的には4次元構造**（Kernel Rank = 0）と判明
+- **結論**: 幾何学的アプローチ（PCA+凸包+KNN）が理論的に正しい
+- **進展**: Window境界のフラクタル性分析には、**PCA基底（2D射影）を厳密な基準として使用可能**
+  - SNFでは2D構造を抽出できないが、PCAで99.996%の精度で2D平面を特定済み
+  - この2D射影平面を使ってフラクタル次元の計算が可能
+  - 課題1（基底の整合性）は、SNF失敗により**PCA基底が唯一の選択肢**と確定
 
 
 ---
@@ -618,7 +630,102 @@ candidates_for_edge << candidate_shape
 
 ---
 
-## 7. 注意事項
+## 7. SNF/Nullspace アプローチの調査結果 (2025-12-07)
+
+### 7.1 調査の背景と目的
+
+**動機**: Spectreタイル座標の2次元構造を代数的に厳密抽出できるか検証
+
+**アプローチ**:
+1. **ℤ-モジュール**: 整数変位行列からSNF/Nullspaceでカーネル抽出
+2. **ℤ[ω]-モジュール**: Cyclotomic表現（ω = exp(2πi/12)）での厳密整数演算
+
+**実装成果**:
+- ✅ Ruby: [export_cyclotomic_displacements.rb](file:///d:/Programming-Data/RubyPG/symbolic-spectre-tiles/strict_caspr/export_cyclotomic_displacements.rb)
+- ✅ Python: [snf_from_cyclotomic.py](file:///d:/Programming-Data/RubyPG/symbolic-spectre-tiles/strict_caspr/snf_from_cyclotomic.py)
+- ✅ Analysis: [analyze_cyclotomic_data.py](file:///d:/Programming-Data/RubyPG/symbolic-spectre-tiles/strict_caspr/analyze_cyclotomic_data.py)
+
+### 7.2 実験結果と結論
+
+#### Test 1: 166点データセット + Test 2: 単一タイル14点
+
+| 手法 | フィルタリング | 閾値処理 | Kernel Rank | 結果 |
+|------|-------------|---------|------------|------|
+| ℤ（従来） | あり（PCA） | T_SNF=0.1 | 0 | ❌ |
+| ℤ | なし | なし | 0 | ❌ |
+| **ℤ[ω]** | なし | なし | **0** | ❌ |
+| **単一タイル14点** | なし | なし | **0** | ❌ |
+
+#### PCA分析結果
+
+```
+Variance Ratio: [76.23%, 23.77%, 0.004%, 0.000004%]
+累積寄与率: 99.996% (PC1+PC2)
+```
+
+→ **幾何学的には2次元、代数的には4次元**（矛盾しない）
+
+### 7.3 根本原因と StrictCASPr実装への影響
+
+**Spectreタイル座標の本質**:
+- 4つの係数 `[a0, a1, b0, b1]` は代数的に独立
+- 変位行列は常に Rank = 4 → カーネル次元 = 0
+- PCAで2Dに見えるのは幾何学的制約による分散の偏り
+
+**StrictCASPrGroupStatistics への影響**:
+
+当初の実装計画では、`StrictCASPrGroupStatistics` クラスで以下を想定:
+```ruby
+class StrictCASPrGroupStatistics < GroupStatistics
+  # SNF/Nullspaceで厳密な2次元部分空間を検出
+  # snf_from_points.py を呼び出してカーネル基底を取得
+  # カーネルに基づく厳密な射影検証
+end
+```
+
+**判明した事実**:
+- ✅ PCA分析: 99.996%が2次元（統計的には正しい）
+- ❌ SNF/Nullspace: カーネル次元 = 0（代数的には4次元）
+- ❌ snf_from_points.py呼び出しは**理論的に不可能**
+
+**結論**:
+- `StrictCASPrGroupStatistics` のSNFベース実装は**断念**
+- 既存の `PCAGroupStatistics` が理論的・実用的に最適
+- 代替案: 幾何学的制約（凸包精緻化、回転群対称性）ベースの検証
+
+### 7.4 既存手法の妥当性確認
+
+**my_spectre_coordinateAnalyzer.rb の PCA/KNN/凸包アプローチ**:
+
+| 観点 | SNF | PCA/KNN/凸包 |
+|------|-----|-------------|
+| Spectre座標への適用性 | ❌ 不適 | ✅ 適切 |
+| 実用性 | ❌ カーネルなし | ✅ 高精度 |
+| 理論的妥当性 | ❌ 4D構造 | ✅ 幾何学優先 |
+
+**結論**: 既存のPCA+KNN+凸包が**理論的・実用的に最適**
+
+### 7.5 今後の方針
+
+**推奨（継続）**:
+- ✅ PCA射影 + 統計的検証
+- ✅ グループ別統計（grouped_pca_results）
+- ✅ KNN密度推定
+
+**非推奨**:
+- ❌ SNFベースの手法（ℤ, ℤ[ω]）
+- ❌ 射影前処理 + SNF
+
+**参照**: 
+- 📄 [調査詳細レポート](file:///C:/Users/jumni/.gemini/antigravity/brain/e458a395-b0c4-4037-aca7-b849b54086a6/walkthrough.md)
+- 📄 [エラー原因分析](file:///C:/Users/jumni/.gemini/antigravity/brain/e458a395-b0c4-4037-aca7-b849b54086a6/snf_kernel_error_analysis.md)
+
+### 7.6 追記 (2025-12-09)
+`strict_caspr` モジュールおよび `HighPrecisionMath` の実装により、SNF計算や円分体変位解析のためのツール群自体は codebase に統合されました。これにより、検証不可能とされたアプローチについても、高精度な数学的解析を行う基盤は整いました。
+
+---
+
+## 8. 注意事項
 
 - data_groupsの構造が仕様と異なる可能性あり（要確認）
 - ユーザーが一部修正中（ShapeInfo.new呼び出しなど）
@@ -626,7 +733,7 @@ candidates_for_edge << candidate_shape
 
 ---
 
-## 8. 実装状況サマリー (2025-12-05)
+## 9. 実装状況サマリー (2025-12-05)
 
 ### 8.1 統合の成果
 
@@ -680,3 +787,16 @@ candidates_for_edge << candidate_shape
 **更新履歴**:
 - 2025-11-23: 初版作成（hybrid_v2.rb の実装状況）
 - 2025-12-05: base_interface.rb への統合状況を反映
+- 2025-12-07: SNF/Z[ω]調査結果を追加（セクション7）
+- 2025-12-09: `strict_caspr` および `HighPrecisionMath` の実装を反映、直近のコミット内容を追記
+
+## 10. 直近の更新要約 (2025-12-09)
+直近の3件のコミット (3af0e4ea, 501957e8, 08bc0472) に基づく更新内容は以下の通りです:
+
+1.  **Strict CASPr ツール群の実装**:
+    *   `strict_caspr` モジュールに対し、円分体 (Cyclotomic) 上での変位解析、SNF (Smith Normal Form) 計算、および Spectre タイル分析のためのユーティリティ機能を実装しました。
+    *   **HighPrecisionMath**: 高精度な数値計算を行うためのモジュールを追加し、解析の信頼性を向上させました。
+
+2.  **課題とドキュメントの整備**:
+    *   現状の課題を整理し、実装状況ドキュメント (`implementation_status.md`) の記述を最新の状態に更新しました。
+
