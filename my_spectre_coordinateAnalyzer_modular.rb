@@ -7,15 +7,9 @@
 require 'csv'
 require 'matrix'
 require 'set'
+require './my_cyclotomic_strategy'
+require './my_spectre_generator_generic'
 require_relative 'my_spectre_coordinateAnalyzer_base_interface'
-
-# ==================================================================
-# 新規GroupStatistics実装（正しい拡張方法）
-# ==================================================================
-
-# CommonBasisGroupStatistics と CompositeGroupStatistics は
-# my_spectre_coordinateAnalyzer_base_interface.rb に移動しました。
-
 
 # ==================================================================
 # 定数
@@ -27,9 +21,55 @@ KNN_K = 5
 # メイン処理開始
 # ==================================================================
 
-filename = ARGV[0] || 'spectre-Cyclotomic_MonoChrome_Tile-5.3-14.6-4-4401tiles.svg_full_vertex.csv'
+# filename = ARGV[0] || 'spectre-Cyclotomic_MonoChrome_Tile-5.3-14.6-4-4401tiles.svg_full_vertex.csv'
 puts "🚀 省メモリ設計による座標解析を開始"
-puts "📁 入力ファイル: #{filename}\n\n"
+# --- 1. 戦略とジェネレータの初期化 ---
+# --- 設定 ---
+N_ITERATIONS = 4
+EDGE_A = 20.0 / (Math.sqrt(3) + 2.0)
+EDGE_B = 20.0 - EDGE_A
+puts "🚀 spectre generator options = {N_ITERATIONS: #{N_ITERATIONS}, EDGE_A: #{EDGE_A}, EDGE_B: #{EDGE_B}}"
+# --- 2. ジェネレータの初期化 ---
+# shape_enumerator = SpectreDataEnumerators.from_csv(filename)
+# ジェネレータに戦略を渡して初期化
+# generator = SpectreTilingGenerator.new(strategy, EDGE_A, EDGE_B)
+# shape_enumerator = SpectreDataEnumerators.from_generator(generator, N_ITERATIONS)
+shape_enumerator = Enumerator.new do |y|
+  # 使用するジオメトリ戦略をインスタンス化
+  strategy = CyclotomicStrategy.new
+  strategy.set_debug(false)
+  spectre_points = strategy.define_spectre_points(EDGE_A, EDGE_A)
+  mystic_points = strategy.define_mystic_points(spectre_points)
+  # ジェネレータに戦略を渡して初期化
+  generator = SpectreTilingGenerator.new(strategy, EDGE_A, EDGE_B)
+  generator.generate(N_ITERATIONS) do |n, tilesHash|
+    puts "\t\t#{n}世代　準備完了";
+  end
+  # shape_id カウンター
+  shape_id_counter = 0
+  generator.root_tile.for_each_tile(strategy.identity_transform) do |transform, label, parent_info|
+    # transform を適用して座標変換
+    vertices = (if label == 'Gamma2'
+              then
+                mystic_points
+              else
+                spectre_points
+              end
+            ).map {|pt| strategy.transform_point(transform, pt).vector}
+
+    # angle, scale の取得
+    angle, scale = strategy.get_angle_from_transform(transform)
+
+    # ShapeInfoを生成（shape_idを付与）
+    y << ShapeInfo.new(vertices, angle, scale,
+               shape_id: shape_id_counter.to_s
+              #  group_key: "gen#{n}:#{angle}-#{scale}",
+              )
+    shape_id_counter += 1
+  end
+  puts "\t\t#{shape_id_counter}個のShapeInfo生成完了"
+end
+
 
 start_time = Time.now
 
@@ -39,10 +79,8 @@ start_time = Time.now
 
 puts "🔬 SpectreDataLoader でデータ読み込み中..."
 
-shape_enumerator = SpectreDataEnumerators.from_csv(filename)
 
 # PCA統計ビルダー（Procオブジェクト）
-# PCA統計ビルダー（Procオブジェクト） - 環境に合わせて切り替え
 if defined?(HighPrecisionPCAGroupStatistics)
   puts "✨ HighPrecisionPCAGroupStatistics を使用して解析を行います"
   pca_statistics_builder = ->(group_key, data_points) {
@@ -59,8 +97,11 @@ loader = SpectreDataLoader.new(statistics_builder: pca_statistics_builder)
 loader.load(shape_enumerator).analyze!
 
 puts "✅ データ読み込み完了"
+puts "   ShapeInfoパターン数: #{ShapeInfo.valid_patterns.size}"
 puts "   グループ数: #{loader.shapes_by_key.size}"
-puts "   パターン数: #{ShapeInfo.valid_patterns.size}"
+loader.shapes_by_key.each do |key, shapes|
+  puts "\t\tグループ #{key}: #{shapes.size}個"
+end
 
 # ==================================================================
 # ステップ2: 省メモリヘルパーの活用
@@ -76,9 +117,17 @@ bounds = {
       b0_min: Float::INFINITY, b0_max: -Float::INFINITY,
       b1_min: Float::INFINITY, b1_max: -Float::INFINITY
     }
+a0_list = []
+b0_list = []
+
 loader.each_vertices do |v, _|
   input_coords_set << v.to_a
   a0, a1, b0, b1 = v.to_a
+
+  # IQR計算用に保存
+  a0_list << a0
+  b0_list << b0
+
   bounds[:a0_min] = [bounds[:a0_min], a0].min
   bounds[:a0_max] = [bounds[:a0_max], a0].max
   bounds[:a1_min] = [bounds[:a1_min], a1].min
@@ -160,7 +209,6 @@ puts "   最大射影半径² (99%ile): #{max_radius_sq.round(6)}"
 puts "\n🔧 CompositeGroupStatistics で統計を統合中..."
 
 # 共通基底統計は全グループで共通なので、ループの外で1回だけ生成
-# これにより、無駄なオブジェクト生成を防ぎ、重複を解消する
 shared_common_stats = CommonBasisGroupStatistics.new(
   "COMMON_SHARED", # 共有用の識別子
   [],
@@ -172,7 +220,6 @@ loader.shapes_by_key.each_key do |group_key|
   pca_stats = loader.statistics_manager.instance_variable_get(:@groups)[group_key]
 
   # CompositeGroupStatisticsを作成
-  # 先頭に shared_common_stats を置くことで、valid? 判定時に早期枝刈り（Early Pruning）を促進する
   composite_stats = CompositeGroupStatistics.new(
     group_key,
     [shared_common_stats, pca_stats]
@@ -181,7 +228,6 @@ loader.shapes_by_key.each_key do |group_key|
   loader.statistics_manager.register(composite_stats)
 
   # === 構造化レポートの出力 ===
-  # 全てのグループの詳細を出力
   puts "\n📊 統計情報構造化レポート (Group: #{group_key}):"
   composite_stats.report($stdout, 0)
   puts "\n"
@@ -201,23 +247,29 @@ initial_shapes = loader.get_seeded_shapes(ids: (0..9).map(&:to_s))
 raise "❌ 初期形状が見つかりませんでした" if initial_shapes.empty?
 puts "✅ 初期形状数: #{initial_shapes.size}（shape#0-9をloaderから取得）"
 
-# 探索範囲の設定（boundsから計算）
-margin = 0.1
-
-search_range = {
-  min_a0: bounds[:a0_min] - (bounds[:a0_max] - bounds[:a0_min]) * margin,
-  max_a0: bounds[:a0_max] + (bounds[:a0_max] - bounds[:a0_min]) * margin,
-  min_b0: bounds[:b0_min] - (bounds[:b0_max] - bounds[:b0_min]) * margin,
-  max_b0: bounds[:b0_max] + (bounds[:b0_max] - bounds[:b0_min]) * margin
-}
-
-puts "📏 探索範囲（boundsから計算）:"
-puts "   a0: [#{search_range[:min_a0].round(2)}, #{search_range[:max_a0].round(2)}]"
-puts "   b0: [#{search_range[:min_b0].round(2)}, #{search_range[:max_b0].round(2)}]"
-
 # ==================================================================
 # ステップ6: run_search_generic で探索
 # ==================================================================
+
+# 探索範囲の設定: IQR (四分位範囲) を用いた「内接領域」の設定
+a0_list.sort!
+b0_list.sort!
+
+n_total = a0_list.size
+q1_idx = n_total / 4
+q3_idx = n_total * 3 / 4
+
+search_range = {
+  min_a0: a0_list[q1_idx],
+  max_a0: a0_list[q3_idx],
+  min_b0: b0_list[q1_idx],
+  max_b0: b0_list[q3_idx]
+}
+
+puts "\n📊 探索領域設定 (IQR based Inner Box):"
+puts "   Total Points: #{n_total}"
+puts "   a0 Range (Q1-Q3): [#{search_range[:min_a0]}, #{search_range[:max_a0]}]"
+puts "   b0 Range (Q1-Q3): [#{search_range[:min_b0]}, #{search_range[:max_b0]}]"
 
 puts "\n💡 run_search_generic で探索を開始..."
 puts "   ※ ShapeInfo.is_valid_with_groupStatistics? が自動的にComposite検証を実行"
@@ -226,6 +278,43 @@ max_points = input_coords_set.size / 14 / 2 * 2
 target_coverage = 0.95
 
 puts "   目標: #{max_points}点, カバレッジ: #{(target_coverage * 100).round(1)}%"
+
+# 初期形状が探索範囲内にあるか確認し、なければ範囲内の形状を検索して採用する
+valid_seeds = initial_shapes.select do |shape|
+  shape.vertices.all? do |v|
+    a0, a1, b0, b1 = v.to_a
+    a0.between?(search_range[:min_a0], search_range[:max_a0]) &&
+    b0.between?(search_range[:min_b0], search_range[:max_b0])
+  end
+end
+
+if valid_seeds.empty?
+  puts "⚠️ 初期形状(id:0-9)は探索範囲外です。範囲内の形状を検索します..."
+  # 全形状から探索
+  found_seed = nil
+  loader.shapes_by_key.each_value do |shapes|
+    found_seed = shapes.find do |shape|
+      shape.vertices.all? do |v|
+        a0, a1, b0, b1 = v.to_a
+        a0.between?(search_range[:min_a0], search_range[:max_a0]) &&
+        b0.between?(search_range[:min_b0], search_range[:max_b0])
+      end
+    end
+    break if found_seed
+  end
+
+  if found_seed
+    puts "✅ 範囲内のシード形状を発見: Group=#{found_seed.group_key}"
+    initial_shapes = [found_seed]
+  else
+    puts "❌ 警告: 探索範囲内に適合する形状が見つかりませんでした。探索範囲を少し広げることを検討してください。"
+    # 強行突破（エラーになる可能性大）
+  end
+else
+  puts "✅ 範囲内のシード形状を使用: #{valid_seeds.size}個"
+  initial_shapes = valid_seeds
+end
+
 
 candidates, debug_stats = SpectreRules.run_search_generic(
   initial_shapes,
@@ -324,29 +413,19 @@ puts "  探索結果の余分な点: #{comparison_stats[:extra]}"
 puts "  入力データの未発見点: #{input_coords_set.size - comparison_stats[:in_input]}"
 
 puts "\n【省メモリ化の実証】"
-puts "  ❌ raw_data: 不使用（28006行のCSVデータ）"
-puts "  ❌ rows_by_shape: 不使用（raw_dataから構築）"
-puts "  ❌ a0_vals, b0_vals: 不使用（raw_data.map）"
 puts "  ✅ loader.build_input_coords_set(): 使用"
 puts "  ✅ loader.compute_bounds(): 使用"
-puts "  ✅ loader.get_seeded_shapes(): 使用（shape#0-9を直接取得）"
+puts "  ✅ loader.get_seeded_shapes(): 使用"
 puts "  📉 推定メモリ削減: 30-40%"
 
 puts "\n【性能改善の実証】"
 puts "  ✅ ShapeInfo.shape_id: CSVのshape#を自動保存"
 puts "  ✅ get_seeded_shapes(): 特定shape_idの形状を効率的に取得"
-puts "  ✅ 初期形状選択の精度向上: 最初のN個 → shape#0-9"
-puts "  ✅ loader.each_shape: 全形状を列挙"
-puts "  ✅ loader.each_vertices: 全頂点を列挙（列挙子パターン）"
-puts "  ✅ compute_bounds: each_verticesを活用"
 
 puts "\n【正しいOOP設計の実証】"
 puts "  ✅ GroupStatistics継承: CommonBasisGroupStatistics"
 puts "  ✅ Compositeパターン: CompositeGroupStatistics"
-puts "  ✅ StatisticsManager委譲: loader.statistics_manager.register()"
-puts "  ✅ 自動検証: ShapeInfo.is_valid_with_groupStatistics?"
-puts "  ✅ SpectreDataLoader: ヘルパーメソッド活用"
-puts "  ✅ run_search_generic: カスタム検証不要"
+puts "  ✅ StatisticsManager委譲"
 
 puts "\n⏱️ 総実行時間: #{(Time.now - start_time).round(2)}秒"
 puts "="*60
