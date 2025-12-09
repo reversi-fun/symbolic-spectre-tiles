@@ -13,36 +13,9 @@ require_relative 'my_spectre_coordinateAnalyzer_base_interface'
 # 新規GroupStatistics実装（正しい拡張方法）
 # ==================================================================
 
-# 共通基底検証をGroupStatisticsとして実装
-class CommonBasisGroupStatistics < GroupStatistics
-  attr_reader :common_basis, :max_radius_sq
+# CommonBasisGroupStatistics と CompositeGroupStatistics は
+# my_spectre_coordinateAnalyzer_base_interface.rb に移動しました。
 
-  def initialize(group_key, data_points, common_basis, max_radius_sq)
-    super(group_key, data_points)
-    @common_basis = common_basis
-    @max_radius_sq = max_radius_sq
-  end
-
-  def valid?(data_point)
-    proj = @common_basis.map { |b| data_point.inner_product(Vector[*b]) }
-    proj.map { |x| x**2 }.sum <= @max_radius_sq
-  end
-end
-
-# 複数統計の組み合わせ（Compositeパターン）
-class CompositeGroupStatistics < GroupStatistics
-  attr_reader :statistics_list
-
-  def initialize(group_key, statistics_list)
-    super(group_key, [])
-    @statistics_list = statistics_list
-  end
-
-  def valid?(data_point)
-    # 全ての統計クラスが有効と判定した場合のみtrue
-    @statistics_list.all? { |stats| stats.valid?(data_point) }
-  end
-end
 
 # ==================================================================
 # 定数
@@ -69,9 +42,18 @@ puts "🔬 SpectreDataLoader でデータ読み込み中..."
 shape_enumerator = SpectreDataEnumerators.from_csv(filename)
 
 # PCA統計ビルダー（Procオブジェクト）
-pca_statistics_builder = ->(group_key, data_points) {
-  PCAGroupStatistics.new(group_key, data_points, KNN_K)
-}
+# PCA統計ビルダー（Procオブジェクト） - 環境に合わせて切り替え
+if defined?(HighPrecisionPCAGroupStatistics)
+  puts "✨ HighPrecisionPCAGroupStatistics を使用して解析を行います"
+  pca_statistics_builder = ->(group_key, data_points) {
+    HighPrecisionPCAGroupStatistics.new(group_key, data_points, KNN_K)
+  }
+else
+  puts "⚠️ HighPrecisionPCAGroupStatistics が未定義のため、標準の PCAGroupStatistics を使用します"
+  pca_statistics_builder = ->(group_key, data_points) {
+    PCAGroupStatistics.new(group_key, data_points, KNN_K)
+  }
+end
 
 loader = SpectreDataLoader.new(statistics_builder: pca_statistics_builder)
 loader.load(shape_enumerator).analyze!
@@ -177,22 +159,32 @@ puts "   最大射影半径² (99%ile): #{max_radius_sq.round(6)}"
 
 puts "\n🔧 CompositeGroupStatistics で統計を統合中..."
 
+# 共通基底統計は全グループで共通なので、ループの外で1回だけ生成
+# これにより、無駄なオブジェクト生成を防ぎ、重複を解消する
+shared_common_stats = CommonBasisGroupStatistics.new(
+  "COMMON_SHARED", # 共有用の識別子
+  [],
+  common_basis,
+  max_radius_sq
+)
+
 loader.shapes_by_key.each_key do |group_key|
   pca_stats = loader.statistics_manager.instance_variable_get(:@groups)[group_key]
 
-  common_stats = CommonBasisGroupStatistics.new(
-    group_key,
-    [],
-    common_basis,
-    max_radius_sq
-  )
-
+  # CompositeGroupStatisticsを作成
+  # 先頭に shared_common_stats を置くことで、valid? 判定時に早期枝刈り（Early Pruning）を促進する
   composite_stats = CompositeGroupStatistics.new(
     group_key,
-    [pca_stats, common_stats]
+    [shared_common_stats, pca_stats]
   )
 
   loader.statistics_manager.register(composite_stats)
+
+  # === 構造化レポートの出力 ===
+  # 全てのグループの詳細を出力
+  puts "\n📊 統計情報構造化レポート (Group: #{group_key}):"
+  composite_stats.report($stdout, 0)
+  puts "\n"
 end
 
 puts "✅ 統計統合完了: PCA + 共通基底のComposite検証"

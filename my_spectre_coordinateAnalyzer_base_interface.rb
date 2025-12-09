@@ -501,6 +501,22 @@ class GroupStatistics
     y = point.inner_product(Vector.elements(@basis_vectors[1]))
     [x, y]
   end
+  # 構造化レポート出力 (JSON風)
+  # @param io [IO] 出力先ストリーム
+  # @param indent [Integer] インデントレベル
+  def report(io = $stdout, indent = 0)
+    # デフォルト実装: クラス名と基本情報のみ
+    prefix = indent_str(indent)
+    io.puts "#{prefix}\"#{self.class.name}\": {"
+    io.puts "#{prefix}  \"group_key\": \"#{@group_key}\""
+    io.puts "#{prefix}}"
+  end
+
+  protected
+
+  def indent_str(level)
+    "  " * level
+  end
 end
 
 # --- PCAGroupStatistics クラス ---
@@ -538,6 +554,96 @@ class PCAGroupStatistics < GroupStatistics
     end
 
     true
+  end
+
+  def report(io = $stdout, indent = 0)
+    prefix = indent_str(indent)
+    io.puts "#{prefix}\"#{self.class.name}\": {"
+    io.puts "#{prefix}  \"group_key\": \"#{@group_key}\","
+
+    # 固有値 (もしあれば) - PCAGroupStatisticsでは保持していない実装になっている場合もあるため確認
+    # ここでは basis_vectors を出力
+    io.puts "#{prefix}  \"basis_vectors\": ["
+    @basis_vectors.each_with_index do |vec, i|
+      vec_str = vec.map { |v| v.is_a?(BigDecimal) ? v.to_s("F") : v.to_s }.join(", ")
+      io.print "#{prefix}    { \"index\": #{i}, \"vector\": [#{vec_str}] }"
+      io.puts(i < @basis_vectors.size - 1 ? "," : "")
+    end
+    io.puts "#{prefix}  ]"
+    io.puts "#{prefix}}"
+  end
+end
+
+# --- HighPrecisionPCAGroupStatistics クラス ---
+# HighPrecisionMathを用いた高精度PCA版 (BigDecimal)
+if defined?(HIGHPRECISION_AVAILABLE) && HIGHPRECISION_AVAILABLE
+  class HighPrecisionPCAGroupStatistics < PCAGroupStatistics
+    def initialize(group_key, data_points, knn_k = 5)
+      # 親クラス(PCAGroupStatistics)のinitializeを呼ぶとFloat版PCAが走るため、
+      # 祖父クラス(GroupStatistics)の責務（変数のセット）をここで行い、無駄な計算を省く。
+      # ※ GroupStatistics#initialize は @group_key, @data_points を設定するのみ
+      @group_key = group_key
+      @data_points = data_points
+      @knn_k = knn_k
+
+      # データを HighPrecisionMath 用の形式 (Array of Arrays) に変換
+      # data_points は Vector の配列
+      rows = data_points.map(&:to_a)
+
+      # 高精度PCAの実行 (BigDecimal)
+      # components: 固有ベクトル(基底), lambdas: 固有値
+      # high_precision_pca_int は Integer または BigDecimal の2次元配列を受け取る
+      components, _lambdas = HighPrecisionMath.high_precision_pca_int(rows, 2, group_key)
+
+      # 基底ベクトルをセット (配列の配列)
+      @basis_vectors = components
+
+      # 2D射影と凸包計算
+      # project_to_2d は @basis_vectors を使用するため、これにより高精度な射影が行われる
+      projected_2d = project_to_2d(data_points)
+      @acceptance_domain = SpectreGeometry.compute_convex_hull(projected_2d)
+
+      # KDTreeの構築 (KNN探索用) - 必要なら
+      @kdtree = KDTree.new(projected_2d) if knn_k > 0
+    end
+
+    def report(io = $stdout, indent = 0)
+      prefix = indent_str(indent)
+      io.puts "#{prefix}\"#{self.class.name}\": {"
+      io.puts "#{prefix}  \"group_key\": \"#{@group_key}\","
+
+      io.puts "#{prefix}  \"basis_vectors\": ["
+      @basis_vectors.each_with_index do |vec, i|
+        io.puts "#{prefix}    {"
+        io.puts "#{prefix}      \"index\": #{i},"
+        io.puts "#{prefix}      \"components\": ["
+        vec.each_with_index do |val, j|
+          # 詳細フォーマット: 固定小数点, 指数表記, 連分数, 復元誤差
+          # val_str = val.to_s("F")[0..20] + "..." # 長すぎるので切り詰め
+          sci_str = val.to_s("E")
+
+          # 連分数展開と誤差 (HighPrecisionMathの機能に依存)
+          cf = HighPrecisionMath.continued_fraction(val, max_terms: 50)
+
+          # 復元誤差の計算
+          restored = HighPrecisionMath.continued_fraction_to_decimal(cf)
+          error = (val - restored).abs.to_f
+
+          io.puts "#{prefix}        {"
+          # io.puts "#{prefix}          \"value_fixed\": \"#{val_str}\","
+          io.puts "#{prefix}          \"value_sci\": \"#{sci_str}\","
+          io.puts "#{prefix}          \"continued_fraction\": #{cf.to_s},"
+          io.puts "#{prefix}          \"restoration_error\": \"#{error}\""
+          io.print "#{prefix}        }"
+          io.puts(j < vec.size - 1 ? "," : "")
+        end
+        io.puts "#{prefix}      ]"
+        io.print "#{prefix}    }"
+        io.puts(i < @basis_vectors.size - 1 ? "," : "")
+      end
+      io.puts "#{prefix}  ]"
+      io.puts "#{prefix}}"
+    end
   end
 end
 
@@ -591,6 +697,69 @@ class StrictCASPrGroupStatistics < GroupStatistics
       sum += @return_module.basis[i] * k
     end
     sum
+  end
+end
+
+# --- CommonBasisGroupStatistics クラス ---
+# 共通基底検証をGroupStatisticsとして実装
+class CommonBasisGroupStatistics < GroupStatistics
+  attr_reader :common_basis, :max_radius_sq
+
+  def initialize(group_key, data_points, common_basis, max_radius_sq)
+    super(group_key, data_points)
+    @common_basis = common_basis
+    # Float型で保持（有効桁数6桁程度確保）
+    @max_radius_sq = max_radius_sq.to_f
+  end
+
+  def valid?(data_point)
+    proj = @common_basis.map { |b| data_point.inner_product(Vector[*b]) }
+    proj.map { |x| x**2 }.sum <= @max_radius_sq
+  end
+
+  def report(io = $stdout, indent = 0)
+    prefix = indent_str(indent)
+    io.puts "#{prefix}\"#{self.class.name}\": {"
+    io.puts "#{prefix}  \"group_key\": \"#{@group_key}\","
+    io.puts "#{prefix}  \"max_radius_sq\": #{@max_radius_sq}," # Floatなのでそのまま出力
+    io.puts "#{prefix}  \"common_basis\": ["
+    @common_basis.each_with_index do |vec, i|
+      # common_basis は配列の配列(Float or BigDecimal)
+      vec_str = vec.map { |v| v.is_a?(BigDecimal) ? v.to_s("F") : v.to_s }.join(", ")
+      io.print "#{prefix}    [#{vec_str}]"
+      io.puts(i < @common_basis.size - 1 ? "," : "")
+    end
+    io.puts "#{prefix}  ]"
+    io.puts "#{prefix}}"
+  end
+end
+
+# --- CompositeGroupStatistics クラス ---
+# 複数統計の組み合わせ（Compositeパターン）
+class CompositeGroupStatistics < GroupStatistics
+  attr_reader :statistics_list
+
+  def initialize(group_key, statistics_list)
+    super(group_key, [])
+    @statistics_list = statistics_list
+  end
+
+  def valid?(data_point)
+    # 全ての統計クラスが有効と判定した場合のみtrue
+    @statistics_list.all? { |stats| stats.valid?(data_point) }
+  end
+
+  def report(io = $stdout, indent = 0)
+    prefix = indent_str(indent)
+    io.puts "#{prefix}\"#{self.class.name}\": {"
+    io.puts "#{prefix}  \"group_key\": \"#{@group_key}\","
+    io.puts "#{prefix}  \"children\": ["
+    @statistics_list.each_with_index do |stats, i|
+      stats.report(io, indent + 2)
+      io.puts(prefix + "    " + (i < @statistics_list.size - 1 ? "," : "")) if i < @statistics_list.size - 1 # 簡易的なカンマ処理
+    end
+    io.puts "#{prefix}  ]"
+    io.puts "#{prefix}}"
   end
 end
 
@@ -775,9 +944,12 @@ end
 # 外部データソース（Generator, CSV）からデータを読み込み、
 # 統計情報の構築やパターンの抽出を行う
 class SpectreDataLoader
- attr_reader :shapes_by_key, :statistics_manager
+  attr_reader :shapes_by_key, :statistics_manager
 
-  def initialize(statistics_builder:)
+  # Statistics Builder (デフォルトは標準PCA)
+  DEFAULT_BUILDER = ->(group_key, data_points) { PCAGroupStatistics.new(group_key, data_points) }
+
+  def initialize(statistics_builder: DEFAULT_BUILDER)
     @statistics_builder = statistics_builder  # Proc または callable object
     @shapes_by_key = Hash.new { |h, k| h[k] = [] }
     @statistics_manager = StatisticsManager.new
@@ -874,7 +1046,8 @@ class SpectreDataLoader
       data_points = shapes.flat_map(&:vertices)
       # PCA統計情報の作成（データ点数が少ない場合はスキップなどの処理が必要かも）
       if data_points.size >= 4 # 最低限の点数
-        stats = PCAGroupStatistics.new(key, data_points)
+        # ビルダーを使用して統計オブジェクトを生成
+        stats = @statistics_builder.call(key, data_points)
         @statistics_manager.register(stats)
       end
     end
@@ -1177,42 +1350,193 @@ if __FILE__ == $0
 
   # サンプル整数データ（以前の test_data_int 相当）
   test_data_int = [
-   [ 0, 0, 0, 0],
-   [ 2, -1, 0, 0],
-   [ 1, 1, -1, 2],
-   [ 2, -1, -1, 2],
-   [ 1, -2, -1, 2],
-   [ 3, -3, -2, 1],
-   [ 1, -2, -2, 1],
-   [ 0, -3, 1, -2],
-   [ 0, 0, -1, -1],
-   [-4, -4, 4, -5],
-   [-3, -3, 4, -5],
-   [-5, -2, 5, -4],
-   [-3, -3, 5, -4],
-   [-2, -5, 5, -4],
-   [-1, -4, 3, -3],
-   [-2, -5, 3, -3],
-   [-1, -7, 3, -6],
-   [-4, -4, 2, -4],
-   [-11, 1, 8, -4],
-   [-10, 2, 8, -4],
-   [-12, 3, 9, -3],
-   [-10, 2, 9, -3],
-   [-9, 0, 9, -3],
-   [-8, 1, 7, -2],
-   [-9, 0, 7, -2],
-   [-8, -2, 7, -5],
-   [-11, 1, 6, -3],
-   [-7, -7, 7, -8],
-   [-8, -5, 7, -8],
-   [-9, -6, 9, -9],
-   [-8, -5, 9, -9],
-   [-6, -6, 9, -9],
-   [-7, -4, 8, -7],
-   [-6, -6, 8, -7],
-   [-4, -7, 5, -7],
-   [-7, -7, 6, -6]
+[0, 0, 0, 0],
+[-1, -1, 0, 0],
+[-2, 1, 1, -2],
+[-1, -1, 1, -2],
+[1, -2, 1, -2],
+[0, -3, -1, -1],
+[1, -2, -1, -1],
+[3, -3, -1, 2],
+[0, 0, -2, 1],
+[8, -4, -1, 5],
+[6, -3, -1, 5],
+[7, -2, 1, 4],
+[6, -3, 1, 4],
+[7, -5, 1, 4],
+[5, -4, 0, 3],
+[7, -5, 0, 3],
+[8, -7, -3, 6],
+[8, -4, -2, 4],
+[10, 1, 4, 4],
+[8, 2, 4, 4],
+[9, 3, 6, 3],
+[8, 2, 6, 3],
+[9, 0, 6, 3],
+[7, 1, 5, 2],
+[9, 0, 5, 2],
+[10, -2, 2, 5],
+[10, 1, 3, 3],
+[14, -7, -1, 8],
+[13, -5, -1, 8],
+[15, -6, 0, 9],
+[13, -5, 0, 9],
+[12, -6, 0, 9],
+[11, -4, 1, 7],
+[12, -6, 1, 7],
+[11, -7, -2, 7],
+[14, -7, 0, 6],
+[10, -11, -5, 7],
+[11, -10, -5, 7],
+[12, -12, -6, 9],
+[11, -10, -6, 9],
+[9, -9, -6, 9],
+[10, -8, -4, 8],
+[9, -9, -4, 8],
+[7, -8, -4, 5],
+[10, -11, -3, 6],
+[15, -18, -9, 12],
+[16, -17, -9, 12],
+[17, -19, -10, 14],
+[16, -17, -10, 14],
+[14, -16, -10, 14],
+[15, -15, -8, 13],
+[14, -16, -8, 13],
+[12, -15, -8, 10],
+[15, -18, -7, 11],
+[7, -14, -8, 7],
+[9, -15, -8, 7],
+[8, -16, -10, 8],
+[9, -15, -10, 8],
+[8, -13, -10, 8],
+[10, -14, -9, 9],
+[8, -13, -9, 9],
+[7, -11, -6, 6],
+[7, -14, -7, 8],
+[6, -9, -5, 4],
+[5, -7, -5, 4],
+[5, -7, -4, 5],
+[4, -8, -4, 5],
+[3, -6, -3, 3],
+[4, -8, -3, 3],
+[3, -9, -6, 3],
+[6, -9, -4, 2],
+[-19, -4, -9, -9],
+[-18, -6, -9, -9],
+[-20, -5, -10, -10],
+[-18, -6, -10, -10],
+[-17, -5, -10, -10],
+[-16, -7, -11, -8],
+[-17, -5, -11, -8],
+[-16, -4, -8, -8],
+[-19, -4, -10, -7],
+[-15, 0, -5, -8],
+[-16, -1, -5, -8],
+[-17, 1, -4, -10],
+[-16, -1, -4, -10],
+[-14, -2, -4, -10],
+[-15, -3, -6, -9],
+[-14, -2, -6, -9],
+[-12, -3, -6, -6],
+[-15, 0, -7, -7],
+[-20, 7, -1, -13],
+[-21, 6, -1, -13],
+[-22, 8, 0, -15],
+[-21, 6, 0, -15],
+[-19, 5, 0, -15],
+[-20, 4, -2, -14],
+[-19, 5, -2, -14],
+[-17, 4, -2, -11],
+[-20, 7, -3, -12],
+[-12, 3, -2, -8],
+[-14, 4, -2, -8],
+[-13, 5, 0, -9],
+[-14, 4, 0, -9],
+[-13, 2, 0, -9],
+[-15, 3, -1, -10],
+[-13, 2, -1, -10],
+[-12, 0, -4, -7],
+[-12, 3, -3, -9],
+[-8, -5, -7, -4],
+[-9, -3, -7, -4],
+[-7, -4, -6, -3],
+[-9, -3, -6, -3],
+[-10, -4, -6, -3],
+[-11, -2, -5, -5],
+[-10, -4, -5, -5],
+[-11, -5, -8, -5],
+[-8, -5, -6, -6],
+[-1, -7, -6, 0],
+[-2, -5, -6, 0],
+[0, -6, -5, 1],
+[-2, -5, -5, 1],
+[-3, -6, -5, 1],
+[-4, -4, -4, -1],
+[-3, -6, -4, -1],
+[-4, -7, -7, -1],
+[-1, -7, -5, -2],
+[-5, -11, -10, -1],
+[-4, -10, -10, -1],
+[-3, -12, -11, 1],
+[-4, -10, -11, 1],
+[-6, -9, -11, 1],
+[-5, -8, -9, 0],
+[-6, -9, -9, 0],
+[-8, -8, -9, -3],
+[-5, -11, -8, -2],
+[-10, -7, -10, -4],
+[-12, -6, -10, -4],
+[-12, -6, -8, -5],
+[-11, -8, -8, -5],
+[-13, -7, -9, -6],
+[-11, -8, -9, -6],
+[-10, -10, -12, -3],
+[-10, -7, -11, -5],
+[-32, 16, 4, -23],
+[-31, 14, 4, -23],
+[-33, 15, 3, -24],
+[-31, 14, 3, -24],
+[-30, 15, 3, -24],
+[-29, 13, 2, -22],
+[-30, 15, 2, -22],
+[-29, 16, 5, -22],
+[-32, 16, 3, -21],
+[-28, 20, 8, -22],
+[-29, 19, 8, -22],
+[-30, 21, 9, -24],
+[-29, 19, 9, -24],
+[-27, 18, 9, -24],
+[-28, 17, 7, -23],
+[-27, 18, 7, -23],
+[-25, 17, 7, -20],
+[-28, 20, 6, -21],
+[-33, 27, 12, -27],
+[-34, 26, 12, -27],
+[-35, 28, 13, -29],
+[-34, 26, 13, -29],
+[-32, 25, 13, -29],
+[-33, 24, 11, -28],
+[-32, 25, 11, -28],
+[-30, 24, 11, -25],
+[-33, 27, 10, -26],
+[-25, 23, 11, -22],
+[-27, 24, 11, -22],
+[-26, 25, 13, -23],
+[-27, 24, 13, -23],
+[-26, 22, 13, -23],
+[-28, 23, 12, -24],
+[-26, 22, 12, -24],
+[-25, 20, 9, -21],
+[-25, 23, 10, -23],
+[-21, 15, 6, -18],
+[-22, 17, 6, -18],
+[-20, 16, 7, -17],
+[-22, 17, 7, -17],
+[-23, 16, 7, -17],
+[-24, 18, 8, -19],
+[-23, 16, 8, -19],
+[-24, 15, 5, -19]
+
   ]
 
   # 1) グループPCAで得た基底（ここでは簡易: 全データでPCAを実行して上位2軸を採用）
@@ -1293,10 +1617,17 @@ if __FILE__ == $0
     components_hp, lambdas_hp = HighPrecisionMath.high_precision_pca_int(test_data_int, 2, "highprecision_pca")
     basis_hp = components_hp
     puts "  基底ベクトル数: #{basis_hp.size}"
-    puts "  基底[0]: #{basis_hp[0].map { |x| format('%.10f', x.to_f) }.inspect}"
-    puts "  基底[1]: #{basis_hp[1].map { |x| format('%.10f', x.to_f) }.inspect}"
-    puts "  固有値[0]: #{format('%.10e', lambdas_hp[0].to_f)}"
-    puts "  固有値[1]: #{format('%.10e', lambdas_hp[1].to_f)}"
+    basis_hp.each_with_index do |v, i|
+      puts "  基底[#{i}]:"
+      v.each_with_index do |val, j|
+        puts "    v[#{j}]: #{val.to_s('F')[0..60]}..."
+        cf = HighPrecisionMath.continued_fraction(val, max_terms: 20)
+        puts "           連分数: #{cf.inspect}"
+      end
+    end
+    lambdas_hp.each_with_index do |lam, i|
+      puts "  固有値[#{i}]: #{lam.to_s('E')[0..40]}..."
+    end
 
     # --- 追加: 高精度PCA（float変換版） の直交性 / ゼロベクトルチェック ---
     basis_hp_float = basis_hp.map { |v| v.map(&:to_f) }
@@ -1373,5 +1704,79 @@ if __FILE__ == $0
     puts "  HighPrecisionMath モジュールが利用不可"
     puts "  詳細テストを実行するには HighPrecisionMath/HighPrecisionMath.rb を配置してください"
   end
+
+
+  # [7] SpectreDataLoader のビルダー注入テスト
+  puts "\n【7】SpectreDataLoader のビルダー注入テスト"
+  begin
+    # HighPrecisionビルダーを定義
+    hp_builder = ->(key, result_points) { HighPrecisionPCAGroupStatistics.new(key, result_points) }
+
+    # ローダー生成 (builder注入)
+    # ここではテスト用のモック列挙子を使用
+    mock_shapes = [
+      ShapeInfo.new([Vector[0,0,0,0], Vector[1,0,0,0], Vector[1,1,0,0]], 0.0, 1.0, shape_id: "mock1")
+    ]
+    # shapeのverticesを増やすために複製
+    mock_shapes[0].instance_variable_set(:@vertices, test_data_int.take(4).map{|a| Vector.elements(a)})
+
+    mock_enum = mock_shapes.each
+
+    loader = SpectreDataLoader.new(statistics_builder: hp_builder)
+    loader.load(mock_enum).analyze!
+
+    manager = loader.statistics_manager
+    # 登録された統計情報が HighPrecisionPCAGroupStatistics であるか確認
+    # (StatisticsManager#groups は公開されていないため、instance_variable_getで確認するか、valid?で推測)
+    registered_stats = manager.instance_variable_get(:@groups)["mock1"] # keyは shape.group_key = "0.0-1.0" のはずだが...
+                                                                     # ShapeInfoデフォルトは 0.0-1.0
+
+    registered_stats = manager.instance_variable_get(:@groups).values.first
+
+    if registered_stats.is_a?(HighPrecisionPCAGroupStatistics)
+      puts "  ✓ HighPrecisionPCAGroupStatistics が正しく注入・生成されました"
+      puts "    Class: #{registered_stats.class}"
+    else
+      puts "  ❌ ビルダー注入失敗: 期待されるクラスではありません"
+      puts "    Actual: #{registered_stats.class}"
+    end
+
+    # 標準ビルダー（デフォルト）のテスト
+    loader_std = SpectreDataLoader.new
+    loader_std.load(mock_enum).analyze!
+    stats_std = loader_std.statistics_manager.instance_variable_get(:@groups).values.first
+    if stats_std.is_a?(PCAGroupStatistics)
+      puts "  ✓ デフォルトビルダー (PCAGroupStatistics) が正しく動作しました"
+    else
+      puts "  ❌ デフォルトビルダー失敗"
+    end
+
+  rescue => e
+    puts "  ❌ SpectreDataLoader テスト失敗: #{e.message}"
+    puts e.backtrace
+  end
+
+    # HighPrecisionPCAGroupStatistics の直接生成テスト
+    if defined?(HighPrecisionPCAGroupStatistics)
+      puts "\n【追加検証】HighPrecisionPCAGroupStatistics の動作確認"
+
+      # テストデータ (Integer) を用意
+      hp_test_data = [
+        Vector[0, 0, 0, 0],
+        Vector[10, 0, 0, 0],
+        Vector[0, 10, 0, 0],
+        Vector[0, 0, 10, 0]
+      ]
+
+      hp_stats = HighPrecisionPCAGroupStatistics.new("hp-test", hp_test_data, 0)
+      puts "  ✓ インスタンス生成成功: #{hp_stats.class}"
+      puts "  ✓ 基底ベクトル数: #{hp_stats.basis_vectors.size}"
+      puts "  ✓ 基底ベクトル型: #{hp_stats.basis_vectors.first.first.class} (Expected: BigDecimal)"
+
+      # valid? チェック
+      in_point = Vector[2, 2, 2, 0] # 凸包内（たぶん）
+      is_valid = hp_stats.valid?(in_point)
+      puts "  ✓ valid? 判定 (in_point): #{is_valid}"
+    end
 
 end # main
