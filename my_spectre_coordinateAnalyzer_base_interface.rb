@@ -222,7 +222,20 @@ module SpectreMath
   # --- 連分数からの復元 ---
   # [符号, a0, a1, a2, ...] の形式から復元
   def self.continued_fraction_to_decimal(coeffs, target_type = BigDecimal)
-    return target_type.new('0') if coeffs.nil? || coeffs.empty? || coeffs == [:error]
+    # インスタンス化ヘルパー (BigDecimal.new は廃止されたため Kernel.BigDecimal 等を使用)
+    to_target = ->(val) {
+      if target_type == BigDecimal
+        BigDecimal(val.to_s)
+      elsif target_type == Float
+        val.to_f
+      elsif target_type == Integer
+        val.to_i
+      else
+        target_type.new(val)
+      end
+    }
+
+    return to_target.call('0') if coeffs.nil? || coeffs.empty? || coeffs == [:error]
 
     # --- 1. 符号と係数の分離 ---
     sign = coeffs.first.to_s
@@ -231,17 +244,17 @@ module SpectreMath
 
     if abs_coeffs.nil? || abs_coeffs.empty?
         # 符号のみで係数がない場合（例：[+/-]）
-        return target_type.new('0')
+        return to_target.call('0')
     end
 
     # --- 2. 正の値として復元 ---
     # 通常の復元ロジック (a0, a1, ...)
-    val = target_type.new(abs_coeffs.last.to_s)
+    val = to_target.call(abs_coeffs.last.to_s)
     abs_coeffs[0...-1].reverse_each do |c|
         # cは非負整数であるため、c.to_s は安全
         begin
             # val = c + 1 / val
-            val = target_type.new(c.to_s) + (target_type.new('1') / val)
+            val = to_target.call(c.to_s) + (to_target.call('1') / val)
         rescue ZeroDivisionError
             return val
         end
@@ -249,7 +262,7 @@ module SpectreMath
 
     # --- 3. 符号を適用 ---
     if sign == "-"
-        return val * target_type.new('-1')
+        return val * to_target.call('-1')
     else
         return val
     end
