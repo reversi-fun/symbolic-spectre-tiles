@@ -168,6 +168,310 @@ module SpectreMath
     [components, eigenvalues]
   end
 
+  # --- 連分数展開 (Continued Fraction) ---
+  # --- 連分数展開 (Continued Fraction) ---
+  # 符号を最初の要素（"+" または "-"）として分離し、
+  # 第2要素以降に非負の整数（絶対値）を格納する形式に変更
+  def self.continued_fraction(val, max_terms: 20)
+    # 値が数値でない、または無限大/NaNの場合はエラーシンボルを返す
+    return [:error] unless val.is_a?(Numeric) && val.finite?
+
+    # --- 1. 符号の分離 ---
+    sign = (val >= 0) ? "+" : "-"
+    x_abs = val.abs
+
+    eps = SpectreMath.get_math_context(val.class.name, :convergence_epsilon)
+
+    # 整数に近い場合は即座に終了 (絶対値で判定)
+    if (x_abs - x_abs.round).abs < eps
+        # [符号, 整数値] を返す
+        return [sign, x_abs.round]
+    end
+
+    coeffs = []
+    x = x_abs # 正の値から展開を開始
+
+    max_terms.times do
+        i = x.floor # i は常に非負
+        coeffs << i
+        x = x - i
+
+        if x.abs < eps
+            break
+        end
+
+        begin
+            # ここでは正の値の逆数を取るため、xは必ず正
+            x = 1.0 / x
+        rescue ZeroDivisionError
+            break
+        end
+
+        # 発散チェック
+        if x.abs > 1.0/eps
+            # 発散項は通常省略
+            break
+        end
+    end
+
+    # [符号, a0, a1, a2, ...] の形式で返す
+    return [sign] + coeffs
+  end
+
+  # 連分数からの復元
+  # --- 連分数からの復元 ---
+  # [符号, a0, a1, a2, ...] の形式から復元
+  def self.continued_fraction_to_decimal(coeffs, target_type = BigDecimal)
+    return target_type.new('0') if coeffs.nil? || coeffs.empty? || coeffs == [:error]
+
+    # --- 1. 符号と係数の分離 ---
+    sign = coeffs.first.to_s
+    # 係数リスト (a0, a1, ...) は第2要素以降
+    abs_coeffs = coeffs[1..-1]
+
+    if abs_coeffs.nil? || abs_coeffs.empty?
+        # 符号のみで係数がない場合（例：[+/-]）
+        return target_type.new('0')
+    end
+
+    # --- 2. 正の値として復元 ---
+    # 通常の復元ロジック (a0, a1, ...)
+    val = target_type.new(abs_coeffs.last.to_s)
+    abs_coeffs[0...-1].reverse_each do |c|
+        # cは非負整数であるため、c.to_s は安全
+        begin
+            # val = c + 1 / val
+            val = target_type.new(c.to_s) + (target_type.new('1') / val)
+        rescue ZeroDivisionError
+            return val
+        end
+    end
+
+    # --- 3. 符号を適用 ---
+    if sign == "-"
+        return val * target_type.new('-1')
+    else
+        return val
+    end
+  end
+
+  # 汎用 PCA 検証関数
+  #
+  # @param data [Array<Array<Numeric>>] 入力データ (行の配列)
+  # @param components [Array<Array<Numeric>>] 固有ベクトル (基底)
+  # @param eigenvalues [Array<Numeric>] 固有値 (絶対値の昇順)
+  # @param options [Hash] 設定オプション
+  #   - :label [String] エラーメッセージやレポートに使用する識別子
+  #   - :io [IO] 出力先 (デフォルト: nil = 出力なし)
+  #   - :check_algebraic [Boolean] 連分数展開による解析を行うか (デフォルト: true, io指定時のみ有効)
+  #   - :tolerance_multiplier [Numeric] 許容誤差の倍率 (デフォルト: 1.0)
+  #   - :dimensionality_threshold [Float] 次元性判定の閾値(%)(デフォルト: 10.0)
+  #
+  # @raise [ArgumentError] 入力データ不備 (サイズ不足、次元不一致)
+  # @raise [RuntimeError] 検証失敗 (正規性、直交性、固有対整合性、射影残差などが許容範囲外)
+  def self.verify_pca_results(data, components, eigenvalues, options = {})
+    label = options[:label] || "PCA Verification"
+    io = options[:io]
+    check_algebraic = options.fetch(:check_algebraic, true)
+    tolerance_multiplier = options[:tolerance_multiplier] || 1.0
+    dim_threshold = options[:dimensionality_threshold] || 10.0
+
+    # 1. Input Validation
+    raise ArgumentError, "[#{label}] Input Validation Failed: Data size too small (Rows: #{data.size}, Required: >= 5)" if data.size < 5
+    raise ArgumentError, "[#{label}] Input Validation Failed: Invalid component count (Count: #{components.size}, Required: 4)" if components.size != 4
+    raise ArgumentError, "[#{label}] Input Validation Failed: Invalid eigenvalue count (Count: #{eigenvalues.size}, Required: 4)" if eigenvalues.size != 4
+    raise ArgumentError, "[#{label}] Input Validation Failed: Invalid data dimension (Dim: #{data[0].size}, Required: 4)" if data[0].size != 4
+
+    # ソート順チェック (絶対値昇順であることを確認)
+    val_abs = eigenvalues.map(&:abs)
+    unless val_abs.each_cons(2).all? { |a, b| a <= b }
+      raise RuntimeError, "[#{label}] Verification Failed: Eigenvalue Order - Input eigenvalues are not sorted by magnitude (Values: #{eigenvalues})"
+    end
+
+    sample_val = data[0][0]
+    eps = SpectreMath.get_math_context(sample_val.class.name, :convergence_epsilon) * tolerance_multiplier
+
+    # Header Output
+    if io
+      io.puts "\n" + "=" * 80
+      io.puts "🔍 #{label}"
+      io.puts "=" * 80
+      io.puts "  Input Data: #{data.size} samples, Type: #{sample_val.class}"
+      io.puts "  Epsilon: #{eps}"
+      io.puts "  基底ベクトル数: #{components.size}"
+      components.each_with_index do |component, i|
+        io.puts "  基底#{i}: #{component.map { |x| format('%.10f', x) }.inspect}"
+      end
+    end
+
+    # 2. Eigenvalue Analysis
+    # 表示用に降順に並べ替え
+    sorted_indices = (0...4).to_a.reverse
+    vals_desc = sorted_indices.map { |i| eigenvalues[i] }
+
+    sum_lambdas = val_abs.sum
+    if sum_lambdas.zero?
+      raise RuntimeError, "[#{label}] Verification Failed: Sum of eigenvalues is zero."
+    end
+
+    if io
+      io.puts "\n📊 Eigenvalue Analysis (Sorted Descending):"
+      cumsum = 0.0
+      vals_desc.each_with_index do |v, i|
+        ratio = (v.abs / sum_lambdas * 100)
+        cumsum += ratio
+        io.puts "  λ#{i+1}: #{format('%.10e', v.to_f)} (Ratio: #{format('%.2f', ratio)}%, Cum: #{format('%.2f', cumsum)}%)"
+
+        if check_algebraic
+          cf = SpectreMath.continued_fraction(v, max_terms: 20)
+          io.puts "      Continued Fraction: #{cf.inspect}"
+        end
+      end
+    end
+
+    # Dimensionality Check (using original ascending order: index 0 and 1 are smallest)
+    # The smallest eigenvalues correspond to the null space (if 2D)
+    min_2_variance = (eigenvalues[0].abs + eigenvalues[1].abs)
+    min_2_ratio = (min_2_variance / sum_lambdas * 100)
+
+    if min_2_ratio > dim_threshold
+      raise RuntimeError, "[#{label}] Verification Failed: Dimensionality Check - Significant variance in null-space (Ratio: #{min_2_ratio.round(2)}%, Threshold: #{dim_threshold}%)"
+    elsif io
+      io.puts "\n  ✅ Dimensionality Check: Null-space variance is #{min_2_ratio.round(4)}% (Threshold: #{dim_threshold}%)"
+    end
+
+    # 3. Eigenvector Analysis (Normality & Orthogonality)
+    components.each_with_index do |v, i|
+      # Normality
+      norm_sq = v.zip(v).map { |a, b| a * b }.sum
+      norm = Math.sqrt(norm_sq.to_f) # Check uses sqrt for output, but comparison can be done on sq
+      if (norm - 1.0).abs > eps
+        raise RuntimeError, "[#{label}] Verification Failed: Normality Check - Vector v[#{i}] is not normalized (Norm: #{norm}, Tol: #{eps})"
+      end
+
+      # Orthogonality with SUBSEQUENT vectors
+      (i + 1...components.size).each do |j|
+        dot = v.zip(components[j]).map { |a, b| a * b }.sum
+        if dot.abs > eps
+          raise RuntimeError, "[#{label}] Verification Failed: Orthogonality Check - Pair v[#{i}]·v[#{j}] is not orthogonal (Dot: #{dot}, Tol: #{eps})"
+        end
+      end
+
+      if io && check_algebraic
+        io.puts "\n  Vector v[#{i}] Algebraic Analysis:"
+        v.each_with_index do |val, k|
+           cf = SpectreMath.continued_fraction(val, max_terms: 20)
+           io.puts "    Coords[#{k}]: #{cf.inspect}"
+        end
+      end
+    end
+    if io
+      io.puts "\n  ✅ Eigenvectors are Normalized and Orthogonal."
+    end
+
+    # 4. Eigenpair Consistency (Covariance Matrix Check)
+    # Reconstruct Covariance Matrix
+    m = data.size
+    n_cols = 4
+    col_sums = Array.new(n_cols, 0.0)
+    # Using generic addition
+    data.each { |row| row.each_with_index { |x, j| col_sums[j] += x } }
+
+    # Casting m to appropriate type
+    m_val = (sample_val.is_a?(BigDecimal) ? BigDecimal(m.to_s) : m.to_f)
+    mean = col_sums.map { |s| s / m_val }
+
+    # Covariance loop
+    cov = Array.new(n_cols) { Array.new(n_cols, 0.0) }
+    cov.map! { |row| row.map! { |x| sample_val.is_a?(BigDecimal) ? BigDecimal('0') : 0.0 } }
+
+    data.each do |row|
+      centered = row.zip(mean).map { |x, mu| x - mu }
+      n_cols.times do |dim_i|
+        n_cols.times do |dim_j|
+          cov[dim_i][dim_j] += centered[dim_i] * centered[dim_j]
+        end
+      end
+    end
+    # Divide by m
+    cov.each { |row| row.map! { |x| x / m_val } }
+
+    # Check A*v = lambda*v
+    eigenvalues.each_with_index do |lam, i|
+      vec = components[i]
+
+      # A * v
+      av = Array.new(n_cols, 0.0)
+      # Init with zero of correct type
+      av.map! { |x| sample_val.is_a?(BigDecimal) ? BigDecimal('0') : 0.0 }
+
+      n_cols.times do |r|
+        n_cols.times do |c|
+          av[r] += cov[r][c] * vec[c]
+        end
+      end
+
+      # lambda * v
+      lam_v = vec.map { |x| x * lam }
+
+      # Residual
+      residual = av.zip(lam_v).map { |a, b| a - b }
+      res_norm_sq = residual.zip(residual).map { |a, b| a * b }.sum
+      res_norm = Math.sqrt(res_norm_sq.to_f)
+
+      # Relaxation for checking: Covariance reconstruction from data might have slight precision diffs
+      # compared to the one used for PCA if not exactly same method.
+      # Allowing slightly looser tolerance for this derived check.
+      check_tol = eps * 100
+
+      if res_norm > check_tol
+         # Warn instead of raise if purely numerical noise, but raise if significant
+         # Re-evaluating: standard PCA vs generic covariance calc might differ slightly.
+         # For now, strict check.
+         raise RuntimeError, "[#{label}] Verification Failed: Eigenpair Consistency - v[#{i}] does not satisfy A*v = λ*v (Residual: #{res_norm}, Tol: #{check_tol})"
+      end
+    end
+    if io
+       io.puts "\n  ✅ Eigenpair Consistency Checked (A*v ≈ λ*v)."
+    end
+
+    # 5. Projection Residual Analysis
+    # Project data onto the Null Space (assumed to be components[0] and components[1])
+    # Verify that these projections are small.
+
+    null_basis = components[0..1]
+    mae_sum = 0.0
+
+    data.each do |row|
+      centered = row.zip(mean).map { |x, mu| x - mu }
+      null_basis.each do |basis_vec|
+        proj = centered.zip(basis_vec).map { |a, b| a * b }.sum
+        mae_sum += proj.abs
+      end
+    end
+
+    mae = mae_sum / (m * 2) # Average over samples and 2 dimensions
+    mae_float = mae.to_f
+
+
+    if io
+      io.puts "\n  📉 Projection Verification:"
+      io.puts "    Mean Absolute Error on Null Space: #{format('%.10e', mae_float)}"
+    end
+
+    # Explicit projection tolerance check (if provided in options)
+    # This allows strict verification for data expected to be exactly 2D (e.g. tolerance ~ epsilon)
+    if (projection_tolerance = options[:projection_tolerance])
+      if mae > projection_tolerance
+        raise RuntimeError, "[#{label}] Verification Failed: Projection Residual - MAE (#{mae_float}) exceeds tolerance (#{projection_tolerance})"
+      else
+         io.puts "    ✅ Projection MAE within tolerance (#{projection_tolerance})" if io
+      end
+    end
+
+    io.puts "\n  ✅ All Verification Steps Passed." if io
+  end
+
   # --- 最小二乗法 (Least Squares) ---
   # def least_squares(x_data, y_data)
   #   x = Matrix[*x_data]
@@ -1801,75 +2105,55 @@ if __FILE__ == $0
 
   puts "\nDemo complete. Legend: final=in_inside  (accepted), is_extra (rejected)"
 
-  # ============================================================
-  # 【追加】高精度PCA vs 通常PCA の精度差異検証
-  # ============================================================
-  if HIGHPRECISION_AVAILABLE
     puts "\n" + "=" * 140
-    puts "【追加テスト】高精度PCA (HighPrecisionMath) vs 通常PCA (SpectreMath) の精度差異検証"
-    puts "=" * 140
 
     # テスト用整数データ（既に定義済みの test_data_int を再利用）
     puts "\n📊 テストデータ: test_data_int (#{test_data_int.size}点)"
     puts "   特徴: 整数座標のみ、値域が大きい（-12～3）"
 
     # ======== 1. 通常PCA (Float版) の実行 ========
-    puts "\n【1】通常PCA (SpectreMath.pca_components - Float版)"
-    # data_float = test_data_int.map { |r| r.map(&:to_f) }
-    basis_standard, _ = SpectreMath.pca_components(test_data_int, 2, "standard_pca")
-    puts "  基底ベクトル数: #{basis_standard.size}"
-    puts "  基底[0]: #{basis_standard[0].map { |x| format('%.10f', x) }.inspect}"
-    puts "  基底[1]: #{basis_standard[1].map { |x| format('%.10f', x) }.inspect}"
-
-    # --- 追加: 通常PCA の直交性 / ゼロベクトルチェック ---
-    orth_tol = SpectreMath.get_math_context(test_data_int[0][0].class.name, SpectreMath::SINGULARITY_THRESHOLD)
-    zero_tol = SpectreMath.get_math_context(test_data_int[0][0].class.name, SpectreMath::SINGULARITY_THRESHOLD)
-    # 内積（直交性）
-    dot_std = basis_standard[0].zip(basis_standard[1]).map { |a, b| a * b }.sum
-    norm0 = Math.sqrt(basis_standard[0].map { |x| x**2 }.sum)
-    norm1 = Math.sqrt(basis_standard[1].map { |x| x**2 }.sum)
-    puts "  [CHECK] 通常PCA: 内積(基底0·基底1) = #{format('%.12e', dot_std)}"
-    puts "  [CHECK] 通常PCA: ノルム = (#{format('%.12e', norm0)}, #{format('%.12e', norm1)})"
-    if norm0 < zero_tol || norm1 < zero_tol
-      puts "  ❌ 警告: 通常PCA の基底にゼロベクトルまたはほぼゼロのベクトルが含まれます (norm < #{zero_tol})"
-    elsif dot_std.abs > orth_tol
-      puts "  ⚠️ 警告: 通常PCA の基底は十分に直交していません (|dot| > #{orth_tol})"
-    else
-      puts "  ✅ 通常PCA の基底は概ね直交しています (|dot| <= #{orth_tol})"
+    begin
+      puts "\n【1】通常PCA (SpectreMath.pca_components - Float版)"
+      # 配列サイズ4になるよう調整（pca_componentsは指定された数しか返さないがverify_pca_resultsは4つを要求する場合がある）
+      # ここでは pca_components(..., 4) で呼んでいない場合、固有値等が4つ揃わない可能性があるため
+      # 検証用に再度 4成分で計算し直す、あるいは verify_pca_results の要件に合わせてダミーを詰める等が考えられるが
+      # 計画通り verify_pca_results は 4成分必須とするため、4成分で計算する。
+      basis_standard_4, lambdas_standard_4 = SpectreMath.pca_components(test_data_int, 4, "standard_pca_verify")
+      SpectreMath.verify_pca_results(
+        test_data_int,
+        basis_standard_4,
+        lambdas_standard_4,
+        label: "【1】通常PCA検証 (Float)",
+        io: $stdout,
+        projection_tolerance: test_data_int.size*0.002,
+        check_algebraic: true
+      )
+      puts "✅ 通常PCA検証 PASS"
+    rescue => e
+      puts "❌ #{e.message}"
     end
 
+  # ============================================================
+  # 【追加】高精度PCA vs 通常PCA の精度差異検証
+  # ============================================================
+  if HIGHPRECISION_AVAILABLE
     # ======== 2. 高精度PCA (BigDecimal版) の実行 ========
-    puts "\n【2】高精度PCA (HighPrecisionMath.high_precision_pca_int - BigDecimal版)"
-    HighPrecisionMath.set_scale(200)  # 200桁精度に設定
-    components_hp, lambdas_hp = HighPrecisionMath.high_precision_pca_int(test_data_int, 2, "highprecision_pca")
-    basis_hp = components_hp
-    puts "  基底ベクトル数: #{basis_hp.size}"
-    basis_hp.each_with_index do |v, i|
-      puts "  基底[#{i}]:"
-      v.each_with_index do |val, j|
-        puts "    v[#{j}]: #{val.to_s('F')[0..60]}..."
-        cf = HighPrecisionMath.continued_fraction(val, max_terms: 20)
-        puts "           連分数: #{cf.inspect}"
-      end
-    end
-    lambdas_hp.each_with_index do |lam, i|
-      puts "  固有値[#{i}]: #{lam.to_s('E')[0..40]}..."
-    end
-
-    # --- 追加: 高精度PCA（float変換版） の直交性 / ゼロベクトルチェック ---
-    # basis_hp_float = basis_hp.map { |v| v.map(&:to_f) }
-    dot_hp = basis_hp[0].zip(basis_hp[1]).map { |a, b| a * b }.sum
-    norm_hp0 = Math.sqrt(basis_hp[0].map { |x| x**2 }.sum)
-    norm_hp1 = Math.sqrt(basis_hp[1].map { |x| x**2 }.sum)
-    orth_tol_hp = SpectreMath.get_math_context(dot_hp.class.name, SpectreMath::SINGULARITY_THRESHOLD)
-    puts "  [CHECK] 高精度PCA: 内積(基底0·基底1) = #{format('%.12e', dot_hp.to_f)}"
-    puts "  [CHECK] 高精度PCA: ノルム = (#{format('%.12e', norm_hp0.to_f)}, #{format('%.12e', norm_hp1.to_f)})"
-    if norm_hp0 < zero_tol || norm_hp1 < zero_tol
-      puts "  ❌ 警告: 高精度PCA の基底にゼロベクトルまたはほぼゼロのベクトルが含まれます (norm < #{zero_tol.to_f})"
-    elsif dot_hp.abs > orth_tol_hp
-      puts "  ⚠️ 警告: 高精度PCA の基底は十分に直交していません (|dot| > #{orth_tol_hp.to_f})"
-    else
-      puts "  ✅ 高精度PCA の基底は概ね直交しています (|dot| <= #{orth_tol_hp.to_f})"
+    begin
+      puts "\n【2】高精度PCA (HighPrecisionMath.high_precision_pca_int - BigDecimal版)"
+      HighPrecisionMath.set_scale(200)  # 200桁精度に設定
+      basis_hp, lambdas_hp = HighPrecisionMath.high_precision_pca_int(test_data_int, 4, "highprecision_pca")
+      SpectreMath.verify_pca_results(
+        test_data_int,
+        basis_hp,
+        lambdas_hp,
+        label: "【2】高精度PCA検証 (BigDecimal)",
+        io: $stdout,
+        projection_tolerance: test_data_int.size*0.002,
+        check_algebraic: true
+      )
+      puts "✅ 高精度PCA検証 PASS"
+    rescue => e
+      puts "❌ #{e.message}"
     end
 
     # ======== 3. 基底ベクトルの差異を符号不変で定量化（変更） ========
@@ -1884,8 +2168,9 @@ if __FILE__ == $0
     diffs = []
     sign_flips = []
 
-    (0...2).each do |i|
-      std_v = normalize_vec.call(basis_standard[i])
+    # 4成分比較
+    (0...4).each do |i|
+      std_v = normalize_vec.call(basis_standard_4[i])
       hp_v = normalize_vec.call(basis_hp[i].map(&:to_f))
 
       diff_direct = std_v.zip(hp_v).map { |a, b| (a - b).abs }.max
@@ -1900,22 +2185,15 @@ if __FILE__ == $0
       end
     end
 
-    puts "  基底差分 (符号考慮済): 基底[0]=#{format('%.10e', diffs[0])}, 基底[1]=#{format('%.10e', diffs[1])}"
-    puts "  符号反転検出: 基底[0]=#{sign_flips[0] ? 'YES' : 'NO'}, 基底[1]=#{sign_flips[1] ? 'YES' : 'NO'}"
+    # 簡易表示
+    diffs.each_with_index do |d, i|
+       puts "  基底[#{i}] 差分: #{format('%.10e', d)} (Flip: #{sign_flips[i]})"
+    end
 
     # 固有値（小さい順）の比較（符号や並びの確認）
-    # 標準PCAの固有値を再計算して比較（float版）
-    m = test_data_int.size
-    mean = Vector.elements(test_data_int.transpose.map { |col| col.sum / m.to_f })
-    centered = test_data_int.map { |row| Vector.elements(row) - mean }
-    cov_matrix = Matrix.zero(4)
-    centered.each { |v| cov_matrix += SpectreMath.outer_product(v, v) }  # ← 変更: outer_product -> SpectreMath.outer_product
-    cov_matrix /= m.to_f
-    eig_std = cov_matrix.eigen
-    lambdas_std_sorted = eig_std.eigenvalues.map(&:to_f).sort_by(&:abs).first(2)
-    lambdas_hp_f = lambdas_hp.map(&:to_f)
-
-    puts "\n  固有値（小さい順）: 標準PCA=#{lambdas_std_sorted.map { |x| format('%.10e', x) }}, 高精度PCA=#{lambdas_hp_f.map { |x| format('%.10e', x) }}"
+    # verify_pca_resultsで詳細が出ているので、ここでは差分のみ簡潔に
+    lambdas_std_sorted = lambdas_standard_4.sort_by(&:abs)
+    lambdas_hp_f = lambdas_hp.map(&:to_f) # hpはすでにsort済み(pca_int内)
 
     lambda_diffs = lambdas_std_sorted.zip(lambdas_hp_f).map { |a, b| (a - b).abs }
     puts "  固有値差分: #{lambda_diffs.map { |d| format('%.10e', d) }.join(', ')}"
