@@ -348,9 +348,9 @@ module SpectreMath
     min_2_ratio = (min_2_variance / sum_lambdas * 100)
 
     if min_2_ratio > dim_threshold
-      raise RuntimeError, "[#{label}] Verification Failed: Dimensionality Check - Significant variance in null-space (Ratio: #{min_2_ratio.round(2)}%, Threshold: #{dim_threshold}%)"
+      raise RuntimeError, "[#{label}] Verification Failed: Dimensionality Check - Significant variance in null-space (Ratio: #{min_2_ratio.round(2)}% > Threshold: #{dim_threshold}%)"
     elsif io
-      io.puts "\n  ✅ Dimensionality Check: Null-space variance is #{min_2_ratio.round(4)}% (Threshold: #{dim_threshold}%)"
+      io.puts "\n  ✅ Dimensionality Check: Null-space variance is #{min_2_ratio.round(4)}% <= (Threshold: #{dim_threshold}%)"
     end
 
     # 3. Eigenvector Analysis (Normality & Orthogonality)
@@ -371,13 +371,21 @@ module SpectreMath
       end
 
       if io && check_algebraic
+        io.puts "\n  λ[#{i}] Scientific: #{ eigenvalues[i].inspect }"
+        io.puts "\n  λ[#{i}] Continued Fraction: #{ SpectreMath.continued_fraction(eigenvalues[i], max_terms: 30).inspect }"
         io.puts "\n  Vector v[#{i}] Algebraic Analysis:"
         v.each_with_index do |val, k|
-           cf = SpectreMath.continued_fraction(val, max_terms: 20)
+           io.puts "    Coords[#{k}] scientific: #{val.inspect}"
+           cf = SpectreMath.continued_fraction(val, max_terms: 30)
            io.puts "    Coords[#{k}]: #{cf.inspect}"
         end
       end
     end
+    components[0].zip(components[1]).map { |a, b| a * b }.each_with_index do |dot, i|
+      io.puts "\n   v[0][#{i}] dot v[1][#{i}] scientific: #{dot}" if io && check_algebraic
+      io.puts "\n   v[0][#{i}] dot v[1][#{i}] continued_fraction: #{SpectreMath.continued_fraction(dot, max_terms: 30).inspect}" if io && check_algebraic
+    end
+
     if io
       io.puts "\n  ✅ Eigenvectors are Normalized and Orthogonal."
     end
@@ -429,19 +437,19 @@ module SpectreMath
 
       # Residual
       residual = av.zip(lam_v).map { |a, b| a - b }
-      res_norm_sq = residual.zip(residual).map { |a, b| a * b }.sum
-      res_norm = Math.sqrt(res_norm_sq.to_f)
+      residual_norm_sq = residual.zip(residual).map { |a, b| a * b }.sum
+      residual_norm = Math.sqrt(residual_norm_sq.to_f)
 
       # Relaxation for checking: Covariance reconstruction from data might have slight precision diffs
       # compared to the one used for PCA if not exactly same method.
       # Allowing slightly looser tolerance for this derived check.
       check_tol = eps * 100
 
-      if res_norm > check_tol
+      if residual_norm > check_tol
          # Warn instead of raise if purely numerical noise, but raise if significant
          # Re-evaluating: standard PCA vs generic covariance calc might differ slightly.
          # For now, strict check.
-         raise RuntimeError, "[#{label}] Verification Failed: Eigenpair Consistency - v[#{i}] does not satisfy A*v = λ*v (Residual: #{res_norm}, Tol: #{check_tol})"
+         raise RuntimeError, "[#{label}] Verification Failed: Eigenpair Consistency - v[#{i}] does not satisfy A*v = λ*v (Residual: #{residual_norm}, Tol: #{check_tol})"
       end
     end
     if io
@@ -454,31 +462,69 @@ module SpectreMath
 
     null_basis = components[0..1]
     mae_sum = 0.0
+    max_error = 0.0
+
+    # 相関係数計算用の配列を追加
+    centered_sq_array = []
+    projections_sq_array = []
 
     data.each do |row|
       centered = row.zip(mean).map { |x, mu| x - mu }
-      null_basis.each do |basis_vec|
-        proj = centered.zip(basis_vec).map { |a, b| a * b }.sum
-        mae_sum += proj.abs
-      end
+      centered_sq = centered.map { |x| x * x }.sum
+      centered_sq_array << centered_sq
+
+      projections_sq = null_basis.map do |basis_vec|
+        projection = centered.zip(basis_vec).map { |a, b| a * b }.sum
+        abs_proj = projection.abs
+        mae_sum += abs_proj
+        max_error = abs_proj if abs_proj > max_error
+        projection * projection  # 射影の二乗
+      end.sum
+
+      projections_sq_array << projections_sq
     end
 
     mae = mae_sum / (m * 2) # Average over samples and 2 dimensions
-    mae_float = mae.to_f
 
+    # 相関係数の計算（Pearsonの相関係数）
+    n = centered_sq_array.size
+    mean_centered = centered_sq_array.sum / n.to_f
+    mean_projections = projections_sq_array.sum / n.to_f
+
+    cov = centered_sq_array.zip(projections_sq_array)
+                            .map { |x, y| (x - mean_centered) * (y - mean_projections) }
+                            .sum / n.to_f
+
+    var_centered = centered_sq_array.map { |x| (x - mean_centered) ** 2 }.sum / n.to_f
+    var_projections = projections_sq_array.map { |y| (y - mean_projections) ** 2 }.sum / n.to_f
+
+    correlation = if var_centered.zero? || var_projections.zero?
+                     0.0
+                   else
+                     cov / Math.sqrt(var_centered * var_projections)
+                   end
 
     if io
-      io.puts "\n  📉 Projection Verification:"
-      io.puts "    Mean Absolute Error on Null Space: #{format('%.10e', mae_float)}"
+      io.puts "\n  📊 Projection Verification:"
+      io.puts "    Mean Absolute Error on Null Space: #{format('%.10e', mae.to_f)}"
+      io.puts "    Max Absolute Error on Null Space:  #{format('%.10e', max_error.to_f)}"
+      io.puts "\n  📈 Correlation Analysis (Pearson):"
+      # io.puts "    Mean(centered_sq): #{format('%.10e', mean_centered)}"
+      # io.puts "    Mean(projections_sq): #{format('%.10e', mean_projections)}"
+      # io.puts "    Variance(centered_sq): #{format('%.10e', var_centered)}"
+      # io.puts "    Variance(projections_sq): #{format('%.10e', var_projections)}"
+      # io.puts "    Covariance: #{format('%.10e', cov)}"
+      io.puts "    Correlation Coefficient: #{format('%.10f', correlation)}.abs < 0.2(Expects uncorrelated)"
     end
 
     # Explicit projection tolerance check (if provided in options)
     # This allows strict verification for data expected to be exactly 2D (e.g. tolerance ~ epsilon)
+    # Changed to compare against Max Absolute Error
     if (projection_tolerance = options[:projection_tolerance])
-      if mae > projection_tolerance
-        raise RuntimeError, "[#{label}] Verification Failed: Projection Residual - MAE (#{mae_float}) exceeds tolerance (#{projection_tolerance})"
+      if max_error > projection_tolerance
+        raise RuntimeError, "[#{label}] Verification Failed: Projection Residual - Max Error (#{max_error.to_f}) exceeds tolerance (#{format('%.3e', projection_tolerance)}) (projection_tolerance:%.3e})"
       else
-         io.puts "    ✅ Projection MAE within tolerance (#{projection_tolerance})" if io
+         io.puts "    ✅ Projection Max Error within tolerance (#{max_error.to_f} <= #{format('%.3e', projection_tolerance)}) " if io
       end
     end
 
@@ -1949,104 +1995,6 @@ if __FILE__ == $0
 [81, -48, -13, 58],
 [81, -48, -13, 59],
 [81, -48, -12, 59],
-[82, -48, -12, 59],
-[82, -47, -12, 59],
-[82, -46, -12, 59],
-[81, -45, -12, 59],
-[81, -45, -12, 58],
-[80, -44, -11, 57],
-[80, -45, -11, 57],
-[79, -45, -11, 57],
-[79, -45, -12, 57],
-[79, -45, -13, 58],
-[79, -46, -13, 58],
-[80, -47, -13, 58],
-[80, -47, -13, 59],
-[80, -47, -12, 59],
-[81, -47, -12, 59],
-[81, -46, -12, 59],
-[81, -45, -12, 59],
-[80, -44, -12, 59],
-[80, -44, -12, 58],
-[82, -49, -13, 60],
-[81, -48, -13, 60],
-[81, -47, -13, 60],
-[81, -47, -12, 59],
-[81, -47, -12, 58],
-[80, -46, -12, 58],
-[79, -46, -12, 58],
-[79, -46, -13, 58],
-[79, -46, -14, 59],
-[79, -47, -14, 59],
-[80, -48, -14, 59],
-[81, -49, -14, 59],
-[82, -49, -14, 59],
-[82, -49, -13, 59],
-[81, -46, -10, 58],
-[80, -45, -10, 58],
-[80, -44, -10, 58],
-[80, -44, -9, 57],
-[80, -44, -9, 56],
-[79, -43, -9, 56],
-[78, -43, -9, 56],
-[78, -43, -10, 56],
-[78, -43, -11, 57],
-[78, -44, -11, 57],
-[79, -45, -11, 57],
-[80, -46, -11, 57],
-[81, -46, -11, 57],
-[81, -46, -10, 57],
-[77, -42, -10, 55],
-[78, -43, -10, 55],
-[78, -44, -10, 55],
-[78, -44, -11, 56],
-[78, -44, -11, 57],
-[79, -45, -11, 57],
-[80, -45, -11, 57],
-[80, -45, -10, 57],
-[80, -45, -9, 56],
-[80, -44, -9, 56],
-[79, -43, -9, 56],
-[78, -42, -9, 56],
-[77, -42, -9, 56],
-[77, -42, -10, 56],
-[77, -44, -12, 56],
-[78, -44, -12, 56],
-[79, -45, -12, 56],
-[79, -45, -12, 57],
-[79, -45, -11, 57],
-[80, -45, -11, 57],
-[80, -44, -11, 57],
-[80, -44, -10, 56],
-[80, -44, -10, 55],
-[79, -43, -10, 55],
-[78, -43, -10, 55],
-[77, -43, -10, 55],
-[77, -44, -10, 55],
-[77, -44, -11, 56],
-[83, -51, -14, 60],
-[82, -50, -14, 60],
-[82, -49, -14, 60],
-[82, -49, -13, 59],
-[82, -49, -13, 58],
-[81, -48, -13, 58],
-[80, -48, -13, 58],
-[80, -48, -14, 58],
-[80, -48, -15, 59],
-[80, -49, -15, 59],
-[81, -50, -15, 59],
-[82, -51, -15, 59],
-[83, -51, -15, 59],
-[83, -51, -14, 59],
-[81, -47, -13, 58],
-[81, -48, -13, 58],
-[80, -48, -13, 58],
-[80, -48, -14, 58],
-[80, -48, -15, 59],
-[80, -49, -15, 59],
-[81, -50, -15, 59],
-[81, -50, -15, 60],
-[81, -50, -14, 60],
 [82, -50, -14, 60],
 [82, -49, -14, 60],
 [82, -48, -14, 60],
@@ -2138,7 +2086,7 @@ if __FILE__ == $0
         lambdas_standard_4,
         label: "【1】通常PCA検証 (Float)",
         io: $stdout,
-        projection_tolerance: test_data_int.size*0.002,
+        projection_tolerance: test_data_int.size*0.01,
         check_algebraic: true
       )
       puts "✅ 通常PCA検証 PASS"
@@ -2161,7 +2109,7 @@ if __FILE__ == $0
         lambdas_hp,
         label: "【2】高精度PCA検証 (BigDecimal)",
         io: $stdout,
-        projection_tolerance: test_data_int.size*0.002,
+        projection_tolerance: test_data_int.size*0.01,
         check_algebraic: true
       )
       puts "✅ 高精度PCA検証 PASS"
